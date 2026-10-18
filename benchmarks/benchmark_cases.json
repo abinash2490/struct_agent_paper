@@ -1,0 +1,712 @@
+[
+  {
+    "id": "A01_Portal_Frame_Office",
+    "group": "Group_A_2D",
+    "name": "Single-Bay Portal Frame (Office Gravity)",
+    "prompt": "Create a 2D 1-bay 1-story RC portal frame with a span of 6.0 m and height of 3.5 m with fixed base supports. Apply ASCE 7 office gravity loads (tributary width 4.0 m), generate factored LRFD load combinations, validate the model, run linear static analysis, perform ACI 318 design checks, and generate production CAD DXF drawings.",
+    "difficulty": "Easy",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "generate_load_combinations",
+      "validate_model",
+      "run_analysis",
+      "run_design",
+      "generate_drawings"
+    ],
+    "target_constraints": {
+      "dimension": "2d",
+      "bays": 1,
+      "stories": 1,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 1.757,
+    "baseline_design": {
+      "governing_dcr": 0.846,
+      "columns": [
+        0.35,
+        0.35
+      ],
+      "beams": [
+        0.3,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "A02_Portal_Frame_Storage",
+    "group": "Group_A_2D",
+    "name": "Wide-Span Portal Frame (Storage Loading)",
+    "prompt": "Create a 2D 1-bay 1-story RC frame with an 8.0 m span and 4.0 m column height with fixed base supports. Apply heavy storage occupancy gravity loads (storage_heavy) with a 4.5 m tributary width, generate LRFD load combinations, validate the model, run linear static structural analysis, and check member capacities per ACI 318.",
+    "difficulty": "Easy",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "generate_load_combinations",
+      "validate_model",
+      "run_analysis",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "2d",
+      "bays": 1,
+      "stories": 1,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 3.1,
+    "baseline_design": {
+      "governing_dcr": 0.699,
+      "columns": [
+        0.4,
+        0.4
+      ],
+      "beams": [
+        0.35,
+        0.65
+      ]
+    }
+  },
+  {
+    "id": "A03_2Bay_2Story_Office",
+    "group": "Group_A_2D",
+    "name": "2-Bay 2-Story RC Moment Frame (Office)",
+    "prompt": "Build a 2D 2-bay 2-story RC frame with 5.0 m bay widths and 3.2 m story heights with fixed base supports. Apply office occupancy gravity loads (tributary width 5.0 m), generate factored LRFD load combinations, validate the model, run linear static analysis, and verify that all beams and columns satisfy ACI 318 design requirements.",
+    "difficulty": "Medium",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "generate_load_combinations",
+      "validate_model",
+      "run_analysis",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "2d",
+      "bays": 2,
+      "stories": 2,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 5.772,
+    "baseline_design": {
+      "governing_dcr": 0.998,
+      "columns": [
+        0.4,
+        0.4
+      ],
+      "beams": [
+        0.3,
+        0.45
+      ]
+    }
+  },
+  {
+    "id": "A04_2Bay_3Story_Residential",
+    "group": "Group_A_2D",
+    "name": "2-Bay 3-Story Frame (Residential Gravity)",
+    "prompt": "Model a 2D 2-bay 3-story concrete frame with 6.0 m bay widths and 3.0 m story heights with fixed base supports. Apply residential gravity loads (tributary width 4.5 m), generate LRFD load combinations, validate the structural model, run linear static analysis, and perform ACI 318 member design checks.",
+    "difficulty": "Medium",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "generate_load_combinations",
+      "validate_model",
+      "run_analysis",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "2d",
+      "bays": 2,
+      "stories": 3,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 9.72,
+    "baseline_design": {
+      "governing_dcr": 0.846,
+      "columns": [
+        0.4,
+        0.4
+      ],
+      "beams": [
+        0.3,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "A05_2D_Modal_Dynamics",
+    "group": "Group_A_2D",
+    "name": "2D Multi-Story Modal Eigenvalue Analysis",
+    "prompt": "Create a 2D 2-bay 3-story RC frame (6.0 m bays, 3.5 m story heights) with fixed base supports. Apply office floor gravity loads (tributary width 4.5 m) to establish story masses, run eigenvalue modal analysis for the first 3 modes using the structdyn solver, and inspect the fundamental vibration periods (T1, T2, T3) and mode shapes.",
+    "difficulty": "Medium",
+    "design_required": false,
+    "expected_tools": [
+      "create_frame_model",
+      "run_analysis",
+      "inspect_analysis_results"
+    ],
+    "target_constraints": {
+      "dimension": "2d",
+      "analysis_type": "modal",
+      "num_modes": 3
+    },
+    "baseline_concrete_volume_m3": null
+  },
+  {
+    "id": "A06_2D_Response_Spectrum_ASCE7",
+    "group": "Group_A_2D",
+    "name": "2D Response Spectrum Analysis (ASCE 7 Design Spectrum)",
+    "prompt": "Create a 2D 2-bay 3-story RC frame (6.0 m spans, 3.5 m stories) with fixed base supports. Apply office floor gravity loads (tributary width 4.5 m), generate load combinations, and run Response Spectrum Analysis (RSA) with ASCE 7 design spectrum parameters SDS=1.0g and SD1=0.6g (R=5.0) along the X direction using CQC modal combination. Inspect the dynamic response and base shear, and verify ACI 318 member code compliance.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "run_response_spectrum",
+      "inspect_dynamic_results",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "2d",
+      "analysis_type": "response_spectrum",
+      "spectrum_type": "asce7",
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 13.309,
+    "baseline_design": {
+      "governing_dcr": 0.88,
+      "columns": [
+        0.45,
+        0.45
+      ],
+      "beams": [
+        0.35,
+        0.55
+      ]
+    }
+  },
+  {
+    "id": "A07_2D_RSA_Ground_Motion",
+    "group": "Group_A_2D",
+    "name": "2D Dynamic Response Spectrum from Ground Motion Record",
+    "prompt": "Build a 2D 3-bay 4-story RC frame with 5.5 m bays and 3.5 m stories with fixed base supports. Apply office gravity loads (tributary width 4.5 m), generate load combinations, and execute Response Spectrum Analysis along the X direction using the response spectrum computed from the 1994 Northridge ground motion record with CQC modal combination. Inspect dynamic results and verify member capacities per ACI 318.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "run_response_spectrum",
+      "inspect_dynamic_results",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "2d",
+      "analysis_type": "response_spectrum",
+      "ground_motion": "northridge",
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 26.705,
+    "baseline_design": {
+      "governing_dcr": 0.88,
+      "columns": [
+        0.5,
+        0.5
+      ],
+      "beams": [
+        0.35,
+        0.55
+      ]
+    }
+  },
+  {
+    "id": "A08_2D_Overstressed_Portal_Reflection",
+    "group": "Group_A_2D",
+    "name": "Self-Healing Reflection: Overstressed 2D Frame Resizing",
+    "prompt": "Create a 2D 1-bay 1-story frame with span 7.0 m and height 3.5 m, initialized with undersized trial sections: columns 0.25m x 0.25m and beams 0.25m x 0.30m. Apply heavy storage gravity loads (storage_heavy, tributary width 6.0 m) and generate LRFD load combinations. Run linear static analysis and ACI 318 design checks. Because the initial governing DCR exceeds 1.0, autonomously resize the failing members via modify_project and re-run analysis and design iteratively until all members achieve DCR <= 1.0, then generate final CAD DXF drawings.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "generate_load_combinations",
+      "run_analysis",
+      "run_design",
+      "modify_project",
+      "generate_drawings"
+    ],
+    "target_constraints": {
+      "dimension": "2d",
+      "bays": 1,
+      "stories": 1,
+      "requires_reflection": true,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 2.59,
+    "baseline_design": {
+      "governing_dcr": 0.814,
+      "columns": [
+        0.4,
+        0.4
+      ],
+      "beams": [
+        0.35,
+        0.6
+      ]
+    }
+  },
+  {
+    "id": "B01_3D_2x2_2Story_Office",
+    "group": "Group_B_3D",
+    "name": "Regular 3D Space Frame (2x2 Bay, 2-Story Office)",
+    "prompt": "Create a 3D 2-bay by 2-bay 2-story space frame with 6.0 m bay widths in both X and Y directions and 3.5 m story heights with fixed base boundary conditions. Apply office floor gravity loads (tributary width 6.0 m), generate LRFD load combinations, validate the 3D model, and run 3D direct stiffness structural analysis.",
+    "difficulty": "Medium",
+    "design_required": false,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "generate_load_combinations",
+      "validate_model",
+      "run_analysis"
+    ],
+    "target_constraints": {
+      "dimension": "3d",
+      "stories": 2
+    },
+    "baseline_concrete_volume_m3": null
+  },
+  {
+    "id": "B02_3D_3x2_3Story_Gravity",
+    "group": "Group_B_3D",
+    "name": "3D Space Frame (3x2 Bay, 3-Story Commercial)",
+    "prompt": "Construct a 3D 3-bay by 2-bay 3-story concrete space frame with 5.0 m bays along X, 6.0 m bays along Y, and 3.2 m story heights with fixed base supports. Apply office occupancy gravity loads (tributary width 5.0 m), assemble factored LRFD load combinations, validate the model, run 3D finite element analysis, and execute ACI 318 member checks.",
+    "difficulty": "Medium",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "generate_load_combinations",
+      "validate_model",
+      "run_analysis",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "3d",
+      "stories": 3,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 85.104,
+    "baseline_design": {
+      "governing_dcr": 0.846,
+      "columns": [
+        0.45,
+        0.45
+      ],
+      "beams": [
+        0.3,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "B03_3D_2x2_Seismic_ELF",
+    "group": "Group_B_3D",
+    "name": "3D Space Frame (ASCE 7 Seismic ELF Analysis)",
+    "prompt": "Build a 3D 2x2 bay 3-story space frame (bay width 6.0 m in X and Y, story height 3.5 m) with fixed base supports. Apply office gravity loads (tributary width 6.0 m) and ASCE 7 Equivalent Lateral Force (ELF) seismic loads with SDS=1.2g, SD1=0.5g, and R=5.0. Generate ASCE 7 LRFD seismic load combinations, validate the model, solve the 3D system, and perform ACI 318 3D biaxial P-M interaction and beam capacity checks.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "apply_lateral_loads",
+      "generate_load_combinations",
+      "validate_model",
+      "run_analysis",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "3d",
+      "stories": 3,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 143.1,
+    "baseline_design": {
+      "governing_dcr": 0.989,
+      "columns": [
+        0.8,
+        0.8
+      ],
+      "beams": [
+        0.45,
+        0.85
+      ]
+    }
+  },
+  {
+    "id": "B04_3D_Modal_Dynamics",
+    "group": "Group_B_3D",
+    "name": "3D Space Frame Modal Eigenvalue Analysis",
+    "prompt": "Create a 3D 2-bay by 2-bay 3-story space frame (6.0 m bays in X and Y, 3.5 m stories) with fixed base supports. Apply office floor gravity loads (tributary width 6.0 m) to define floor masses, run 3D eigenvalue modal analysis using the structdyn solver, and inspect the fundamental vibration periods, frequencies, and modal participation factors for the first 3 modes.",
+    "difficulty": "Medium",
+    "design_required": false,
+    "expected_tools": [
+      "create_frame_model",
+      "run_analysis",
+      "inspect_analysis_results"
+    ],
+    "target_constraints": {
+      "dimension": "3d",
+      "analysis_type": "modal",
+      "num_modes": 3
+    },
+    "baseline_concrete_volume_m3": null
+  },
+  {
+    "id": "B05_3D_Response_Spectrum_X",
+    "group": "Group_B_3D",
+    "name": "3D Response Spectrum Analysis (ASCE 7 Spectrum)",
+    "prompt": "Build a 3D 2x2 bay 3-story space frame (6.0 m bays in X and Y, 3.5 m stories) with fixed base boundary conditions. Apply office floor gravity loads (tributary width 6.0 m), generate load combinations, and execute 3D Response Spectrum Analysis (RSA) along the X direction using ASCE 7 design parameters SDS=1.1g, SD1=0.55g (R=5.0) with CQC modal combination. Inspect dynamic modal forces and evaluate ACI 318 biaxial column and beam capacities.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "run_response_spectrum",
+      "inspect_dynamic_results",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "3d",
+      "analysis_type": "response_spectrum",
+      "direction": "x",
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 65.205,
+    "baseline_design": {
+      "governing_dcr": 0.88,
+      "columns": [
+        0.5,
+        0.5
+      ],
+      "beams": [
+        0.35,
+        0.55
+      ]
+    }
+  },
+  {
+    "id": "B06_3D_Response_Spectrum_MultiDir",
+    "group": "Group_B_3D",
+    "name": "3D Multi-Directional Response Spectrum Analysis",
+    "prompt": "Construct a 3D 3x2 bay 3-story space frame (5.0 m bays in X, 6.0 m bays in Y, 3.2 m story heights) with fixed base supports. Apply office floor gravity loads (tributary width 5.0 m), generate load combinations, and perform Response Spectrum Analysis using the 1940 El Centro ground motion response spectrum (R=5.0) with CQC modal combination. Inspect the dynamic response and modal mass participation ratio, and run ACI 318 member checks.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "run_response_spectrum",
+      "inspect_dynamic_results",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "3d",
+      "analysis_type": "response_spectrum",
+      "ground_motion": "elcentro",
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 107.7,
+    "baseline_design": {
+      "governing_dcr": 0.88,
+      "columns": [
+        0.5,
+        0.5
+      ],
+      "beams": [
+        0.35,
+        0.55
+      ]
+    }
+  },
+  {
+    "id": "B07_3D_HighSeismic_Reflection",
+    "group": "Group_B_3D",
+    "name": "Self-Healing Reflection: 3D High-Seismic Redesign",
+    "prompt": "Create a 3D 2x2 bay 2-story space frame (6.0 m bays in X and Y, 3.5 m stories) initialized with undersized trial sections: columns 0.35m x 0.35m and beams 0.30m x 0.45m. Apply office gravity loads (tributary width 6.0 m) and ASCE 7 seismic ELF lateral loads (SDS=1.2g, SD1=0.5g, R=5.0), and generate LRFD load combinations. Run 3D analysis and ACI 318 design checks. Because the initial sections fail (DCR > 1.0), enter the self-healing reflection loop: iteratively enlarge the failing column and beam cross-sections via modify_project and re-run analysis and design until governing DCR <= 1.0.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "apply_lateral_loads",
+      "generate_load_combinations",
+      "run_analysis",
+      "run_design",
+      "modify_project"
+    ],
+    "target_constraints": {
+      "dimension": "3d",
+      "requires_reflection": true,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 56.857,
+    "baseline_design": {
+      "governing_dcr": 0.97,
+      "columns": [
+        0.65,
+        0.65
+      ],
+      "beams": [
+        0.35,
+        0.6
+      ]
+    }
+  },
+  {
+    "id": "B08_3D_Asymmetric_Seismic",
+    "group": "Group_B_3D",
+    "name": "3D Space Frame Bi-Directional & Torsional Seismic Response",
+    "prompt": "Build a 3D 2x2 bay 3-story space frame (6.0 m bays in X and Y, 3.5 m stories) with fixed base supports subjected to bi-directional and torsional seismic demands. Apply office floor gravity loads (tributary width 6.0 m) and ASCE 7 lateral seismic forces (SDS=1.0g, SD1=0.4g, R=5.0), generate 3D orthogonal LRFD seismic load combinations, validate the model, solve the 3D coupled system, and verify member demand-capacity ratios per ACI 318.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "apply_lateral_loads",
+      "generate_load_combinations",
+      "validate_model",
+      "run_analysis",
+      "run_design"
+    ],
+    "target_constraints": {
+      "dimension": "3d",
+      "irregular": true,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 113.636,
+    "baseline_design": {
+      "governing_dcr": 0.995,
+      "columns": [
+        0.75,
+        0.75
+      ],
+      "beams": [
+        0.4,
+        0.7
+      ]
+    }
+  },
+  {
+    "id": "C01_Dynamics_ElCentro_TimeHistory",
+    "group": "Group_C_Advanced",
+    "name": "Earthquake Time-History Analysis (1940 El Centro)",
+    "prompt": "Create a 2D 2-bay 3-story RC frame (6.0 m bays, 3.5 m stories) with fixed base supports. Apply office gravity loads (tributary width 5.0 m) and generate load combinations. Run dynamic earthquake time-history analysis under the 1940 El Centro ground motion record along the X direction using Newmark-Beta integration in structdyn. Inspect the dynamic response (peak roof displacement, base shear), envelope the peak dynamic internal forces, and run ACI 318 member design checks.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "run_time_history",
+      "inspect_dynamic_results",
+      "run_design"
+    ],
+    "target_constraints": {
+      "earthquake": "elcentro",
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 18.889,
+    "baseline_design": {
+      "governing_dcr": 0.998,
+      "columns": [
+        0.55,
+        0.55
+      ],
+      "beams": [
+        0.4,
+        0.65
+      ]
+    }
+  },
+  {
+    "id": "C02_Dynamics_Northridge_TimeHistory",
+    "group": "Group_C_Advanced",
+    "name": "3D Earthquake Time-History Dynamic Integration (1994 Northridge)",
+    "prompt": "Create a 3D 2x2 bay 2-story space frame (6.0 m bays in X and Y, 3.5 m stories) with fixed base supports. Apply office floor gravity loads (tributary width 6.0 m) to establish story masses, and perform direct dynamic time-history numerical integration under the 1994 Northridge ground motion record along the X direction using structdyn. Inspect the peak acceleration, top-story displacement history, and base shear time-series.",
+    "difficulty": "Hard",
+    "design_required": false,
+    "expected_tools": [
+      "create_frame_model",
+      "run_time_history",
+      "inspect_dynamic_results"
+    ],
+    "target_constraints": {
+      "earthquake": "northridge",
+      "dimension": "3d"
+    },
+    "baseline_concrete_volume_m3": null
+  },
+  {
+    "id": "C03_CAE_SAP2000_RoundTrip",
+    "group": "Group_C_Advanced",
+    "name": "CSI SAP2000 CAE Round-Trip Interoperability",
+    "prompt": "Import the structural frame model from the SAP2000 fixture file 'struct_link/tests/fixtures/sample_frame.s2k'. Generate load combinations, validate the imported geometry, run linear static analysis, perform ACI 318 code checks, and export the validated project back to SAP2000 format as 'output/exported_sap2000.s2k'.",
+    "difficulty": "Medium",
+    "design_required": true,
+    "expected_tools": [
+      "import_from_sap2000",
+      "validate_model",
+      "run_analysis",
+      "run_design",
+      "export_to_sap2000"
+    ],
+    "target_constraints": {
+      "interoperability": "sap2000",
+      "round_trip": true,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 1.71,
+    "baseline_design": {
+      "governing_dcr": 0.846,
+      "columns": null,
+      "beams": null
+    }
+  },
+  {
+    "id": "C04_CAE_ETABS_RoundTrip",
+    "group": "Group_C_Advanced",
+    "name": "CSI ETABS CAE Round-Trip Interoperability",
+    "prompt": "Import the multi-story structural model from the ETABS fixture file 'struct_link/tests/fixtures/sample_frame.e2k'. Validate the model geometry and boundary conditions, run structural analysis, and re-export the model back to CSI ETABS '.e2k' format as 'output/exported_etabs.e2k'.",
+    "difficulty": "Medium",
+    "design_required": false,
+    "expected_tools": [
+      "import_from_etabs",
+      "validate_model",
+      "run_analysis",
+      "export_to_etabs"
+    ],
+    "target_constraints": {
+      "interoperability": "etabs",
+      "round_trip": true
+    },
+    "baseline_concrete_volume_m3": null
+  },
+  {
+    "id": "C05_Vision_FloorPlan_Draft_Ingestion",
+    "group": "Group_C_Advanced",
+    "name": "Architectural Floor Plan Draft Ingestion (Vision Compiler)",
+    "prompt": "Examine the attached architectural floor plan drawing for a 3-story office building. Extract the structural grid lines, bay dimensions, and story heights from the drawing into an intermediate draft. Using the struct_agent.vision compiler (create_model_from_plan_draft), compile the complete 3D structural frame model with columns, perimeter and interior beams, and fixed base boundary conditions, validate topological connectivity, and inspect the resulting project.",
+    "image_path": "research paper/benchmarks/fixtures/floor_plan_3story_office.png",
+    "difficulty": "Medium",
+    "design_required": false,
+    "expected_tools": [
+      "create_model_from_plan_draft",
+      "validate_model",
+      "inspect_project"
+    ],
+    "target_constraints": {
+      "vision": true,
+      "dimension": "3d"
+    },
+    "baseline_concrete_volume_m3": null
+  },
+  {
+    "id": "C06_Vision_To_Seismic_Design_Pipeline",
+    "group": "Group_C_Advanced",
+    "name": "Multimodal Floor Plan to Code-Compliant Seismic Design",
+    "prompt": "Execute the end-to-end multimodal floor-plan-to-seismic design workflow: examine the attached architectural floor plan drawing, extract the structural grid lines and story heights into a plan draft, and compile the 3-story 3D structural frame via create_model_from_plan_draft. Apply office gravity loads (tributary width 5.0 m) and ASCE 7 seismic ELF lateral loads (SDS=1.2g, SD1=0.5g, R=5.0), generate LRFD load combinations, execute 3D finite element analysis, and perform ACI 318 biaxial member capacity checks.",
+    "image_path": "research paper/benchmarks/fixtures/floor_plan_3story_office.png",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_model_from_plan_draft",
+      "apply_gravity_loads",
+      "apply_lateral_loads",
+      "generate_load_combinations",
+      "run_analysis",
+      "run_design"
+    ],
+    "target_constraints": {
+      "vision": true,
+      "dimension": "3d",
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 92.664,
+    "baseline_design": {
+      "governing_dcr": 0.992,
+      "columns": [
+        0.65,
+        0.65
+      ],
+      "beams": [
+        0.4,
+        0.65
+      ]
+    }
+  },
+  {
+    "id": "C07_Seismic_TimeHistory_Dynamic_Reflection",
+    "group": "Group_C_Advanced",
+    "name": "Dynamic Self-Healing Reflection under Earthquake Time-History",
+    "prompt": "Construct a 2D 2-bay 3-story moment frame (6.0 m bays, 3.5 m stories) initialized with undersized trial sections: columns 0.30m x 0.30m and beams 0.30m x 0.45m. Apply office gravity loads (tributary width 5.0 m), generate load combinations, and run dynamic earthquake time-history analysis under the 1940 El Centro record along the X direction. Evaluate the dynamic internal force envelope against ACI 318 capacities. Because initial DCR exceeds 1.0, enter the self-healing reflection loop to iteratively enlarge the failing cross-sections via modify_project, re-run dynamic time-history analysis and design checks, and achieve code compliance (DCR <= 1.0).",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "run_time_history",
+      "inspect_dynamic_results",
+      "run_design",
+      "modify_project"
+    ],
+    "target_constraints": {
+      "earthquake": "elcentro",
+      "requires_reflection": true,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 18.889,
+    "baseline_design": {
+      "governing_dcr": 0.998,
+      "columns": [
+        0.55,
+        0.55
+      ],
+      "beams": [
+        0.4,
+        0.65
+      ]
+    }
+  },
+  {
+    "id": "C08_Full_Pipeline_Autonomous_CAD_Production",
+    "group": "Group_C_Advanced",
+    "name": "Autonomous Seismic Design-to-CAD Production Pipeline",
+    "prompt": "Execute the full autonomous seismic engineering pipeline: build a 2D 2-bay 2-story office frame (5.0 m bays, 3.2 m stories) with fixed base supports, apply office gravity loads (tributary width 5.0 m), generate load combinations, and run Response Spectrum Analysis (SDS=1.0g, SD1=0.6g, R=5.0) along the X direction. Design the beams and columns per ACI 318 (resizing if necessary so DCR <= 1.0), generate production AutoCAD DXF drawings with rebar schedules, and inspect the detailing results.",
+    "difficulty": "Hard",
+    "design_required": true,
+    "expected_tools": [
+      "create_frame_model",
+      "apply_gravity_loads",
+      "run_response_spectrum",
+      "run_design",
+      "generate_drawings",
+      "inspect_detailing_results"
+    ],
+    "target_constraints": {
+      "drawings_generated": true,
+      "max_dcr": 1.0
+    },
+    "baseline_concrete_volume_m3": 6.072,
+    "baseline_design": {
+      "governing_dcr": 0.846,
+      "columns": [
+        0.4,
+        0.4
+      ],
+      "beams": [
+        0.3,
+        0.5
+      ]
+    }
+  }
+]
