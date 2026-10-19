@@ -8,9 +8,17 @@ This directory contains the automated benchmarking harness, evaluation cases, te
 ## Directory Structure
 
 ```
-research paper/benchmarks/
+research_paper/benchmarks/
 ├── benchmark_cases.json   # 24 standardized structural design challenges (JSON)
+├── fixtures/              # Real architectural drawings (.PNG) and CAE models (.s2k, .e2k)
+│   ├── exported_seismic_frame.s2k     # 3D multi-story seismic frame (SAP2000 fixture)
+│   ├── exported_seismic_frame.e2k     # 3D multi-story seismic frame (ETABS fixture)
+│   ├── floor_plan_3story_school.PNG   # 3-story school plan (3x3 bays, educational)
+│   ├── hostel_block_plan_2 story.PNG  # 2-story hostel block plan (7x2 bays, residential)
+│   └── mall_plan_4story.PNG           # 4-story commercial mall plan (4x3 bays, retail)
 ├── run_benchmarks.py      # Automated batch execution harness (Gemini & Ollama)
+├── generate_human_baselines.py # Deterministic ACI 318 baseline generator & verifier
+├── verify_cae_parity.py   # Parity verifier comparing against CSI SAP2000 & ETABS
 ├── analyze_results.py     # Results compiler, LaTeX/Markdown tables & plots
 ├── results/               # Structured JSON execution telemetry logs
 └── plots/                 # Publication-grade figures (TCR/CCR bars, DCR trajectories)
@@ -24,9 +32,9 @@ The 24 benchmark cases are organized into three 8-case groups centered on **Eart
 
 | Group Identifier | Focus Regimes | Cases | Highlights |
 |---|---|---|---|
-| **`Group_A_2D`** | 2D Plane Frames | `A01`–`A08` | Single-bay portal, wide-span storage, multi-bay multi-story gravity, 2D modal eigenvalue, **ASCE 7 Response Spectrum Analysis (RSA)**, ground motion RSA, and closed-loop member reflection. |
-| **`Group_B_3D`** | 3D Space Frames | `B01`–`B08` | 3D regular office, commercial gravity, ASCE 7 Seismic ELF, 3D modal dynamics, **3D RSA (X-direction)**, **3D multi-directional RSA**, 3D seismic reflection, and torsional irregularity. |
-| **`Group_C_Advanced`** | Dynamic & Multimodal | `C01`–`C08` | **1940 El Centro time-history**, **1994 Northridge time-history**, CSI SAP2000 `.s2k` round-trip, CSI ETABS `.e2k` round-trip, `struct_agent.vision` floor plan ingestion, dynamic reflection, and autonomous CAD DXF production. |
+| **`Group_A_2D`** | 2D Plane Frames | `A01`–`A08` | Single-bay portal, wide-span storage, multi-bay multi-story gravity, 2D modal eigenvalue, **ASCE 7 Response Spectrum Analysis (RSA)**, ground motion RSA, and closed-loop member reflection (DXF drawings to `research_paper/drawings/`). |
+| **`Group_B_3D`** | 3D Space Frames | `B01`–`B08` | 2-story hostel block plan, commercial gravity, ASCE 7 Seismic ELF, 3D modal dynamics, **3D RSA (X-direction)**, **3D multi-directional RSA**, 3D seismic reflection, and torsional irregularity. |
+| **`Group_C_Advanced`** | Dynamic & Multimodal | `C01`–`C08` | **1940 El Centro time-history**, **1994 Northridge time-history**, CSI SAP2000 `.s2k` round-trip, CSI ETABS `.e2k` round-trip, `struct_agent.vision` floor plan ingestion (school & mall), dynamic reflection, and autonomous CAD DXF production. |
 
 ---
 
@@ -42,35 +50,35 @@ conda activate structeng
 The runner automatically loads `GEMINI_API_KEY` from `struct_agent/.env`:
 ```powershell
 # Run Group A (2D Plane Frames - 8 cases):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_A_2D
 
 # Run Group B (3D Space Frames - 8 cases):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_B_3D
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_B_3D
 
 # Run Group C (Advanced Dynamic & Interop - 8 cases):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_C_Advanced
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_C_Advanced
 
 # Run all 24 cases:
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all
 
 # Run a single specific case:
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases A06_2D_Response_Spectrum_ASCE7
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases A06_2D_Response_Spectrum_ASCE7
 
 # Run ablation study (reflection loop disabled):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases Group_A_2D
 ```
 
 ### 3. Running with Open-Weight Models via Ollama
 Ensure Ollama is running (`ollama serve`):
 ```powershell
 # 1. Local Qwen 3.5 9B:
-python "research paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases Group_A_2D
 
 # 2. Cloud GPT-OSS 120B:
-python "research paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --cases Group_A_2D
 
 # 3. Cloud Nemotron 3 Ultra:
-python "research paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --cases Group_A_2D
 ```
 
 ---
@@ -80,7 +88,7 @@ python "research paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cl
 Once runs finish, summarize telemetry into publication tables and generate publication plots:
 
 ```powershell
-python "research paper/benchmarks/analyze_results.py"
+python "research_paper/benchmarks/analyze_results.py"
 ```
 
 Outputs generated (all saved with unique timestamps so no past results or figures are ever replaced):

@@ -11,7 +11,7 @@
 ## 1. Directory Organization
 
 ```text
-research paper/
+research_paper/
 ├── README.md               # Main navigation hub and research documentation index
 ├── AGENT.md                # Autonomous coding agent instructions and refactoring roadmap
 ├── paper_idea.md           # Foundational research blueprint, research questions, and hypotheses
@@ -27,6 +27,8 @@ research paper/
 │   ├── analyze_results.py          # Statistical telemetry compiler & publication plotter
 │   ├── results/                    # Timestamped JSON execution logs and summary tables
 │   └── plots/                      # Timestamped 300 DPI publication figures
+│
+├── drawings/               # Autonomous CAD DXF drawing outputs and Bar Bending Schedules
 │
 └── manuscript/             # Journal article draft sections and submission deliverables
     ├── 01_introduction.md          # Section 1: Background, motivation, failure modes of direct AI
@@ -89,38 +91,35 @@ conda activate structeng
 ### 2. Verify Deterministic Human Baselines
 
 ```powershell
-python "research paper/benchmarks/generate_human_baselines.py"
-
+python "research_paper/benchmarks/generate_human_baselines.py"
 ```
 
 ### 3. Execute Benchmark Runs
 
 ```powershell
 # Run Group A (2D Plane Frames - 8 cases) with Gemini 3.8 Flash:
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_A_2D
 
 # Run Group B (3D Space Frames - 8 cases):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_B_3D
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_B_3D
 
 # Run Group C (Advanced Dynamic, Vision & CAE Interop - 8 cases):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_C_Advanced
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_C_Advanced
 
 # Run all 24 cases (Full Neuro-Symbolic Agent vs. Ablated No-Reflection Agent):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all
 
 # Run with local and cloud Ollama models:
-python "research paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases all
-python "research paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --cases all
-python "research paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --cases all
-
+python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --cases all
 ```
 
 ### 4. Generate Summary Tables & Publication Figures
 
 ```powershell
-python "research paper/benchmarks/analyze_results.py"
-
+python "research_paper/benchmarks/analyze_results.py"
 ```
 
 ---
@@ -129,12 +128,12 @@ python "research paper/benchmarks/analyze_results.py"
 
 | Section | Title | File Path | Status |
 | --- | --- | --- | --- |
-| **Section 1** | Introduction & Problem Formulation | [`manuscript/01_introduction.md`](https://www.google.com/search?q=manuscript/01_introduction.md) | **Complete** |
-| **Section 2** | Comprehensive Literature Review | [`manuscript/02_literature_review.md`](https://www.google.com/search?q=manuscript/02_literature_review.md) | **Complete** |
-| **Section 3** | Methodology & Neuro-Symbolic Architecture | [`manuscript/03_methodology.md`](https://www.google.com/search?q=manuscript/03_methodology.md) | In Progress |
-| **Section 4** | Experimental Setup & 24-Case Benchmark Protocol | [`manuscript/04_experimental_setup.md`](https://www.google.com/search?q=manuscript/04_experimental_setup.md) | In Progress |
-| **Section 5** | Results, Ablation Studies & Case Walkthroughs | [`manuscript/05_results_and_discussion.md`](https://www.google.com/search?q=manuscript/05_results_and_discussion.md) | Awaiting final telemetry |
-| **Section 6** | Limitations, Future Work & Conclusion | [`manuscript/06_conclusion.md`](https://www.google.com/search?q=manuscript/06_conclusion.md) | Draft outline ready |
-| **References** | Bibliography (Elsevier Format) | [`manuscript/references.md`](https://www.google.com/search?q=manuscript/references.md) | **Complete** |
+| **Section 1** | Introduction & Problem Formulation | [`manuscript/01_introduction.md`](manuscript/01_introduction.md) | **Complete** |
+| **Section 2** | Comprehensive Literature Review | [`manuscript/02_literature_review.md`](manuscript/02_literature_review.md) | **Complete** |
+| **Section 3** | Methodology & Neuro-Symbolic Architecture | [`manuscript/03_methodology.md`](manuscript/03_methodology.md) | **Complete** |
+| **Section 4** | Experimental Setup & 24-Case Benchmark Protocol | [`manuscript/04_experimental_setup.md`](manuscript/04_experimental_setup.md) | **Complete** |
+| **Section 5** | Results, Ablation Studies & Case Walkthroughs | [`manuscript/05_results_and_discussion.md`](manuscript/05_results_and_discussion.md) | Awaiting final telemetry |
+| **Section 6** | Limitations, Future Work & Conclusion | [`manuscript/06_conclusion.md`](manuscript/06_conclusion.md) | **Complete** |
+| **References** | Bibliography (Elsevier Format) | [`manuscript/references.md`](manuscript/references.md) | **Complete** |
 
 

@@ -17,7 +17,7 @@ proving relative discrepancies < 0.5% across all cases.
 
 Usage
 -----
-python "research paper/benchmarks/verify_cae_parity.py"
+python "research_paper/benchmarks/verify_cae_parity.py"
 """
 
 import math

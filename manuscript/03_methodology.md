@@ -1,7 +1,7 @@
 # 3. Methodology & System Architecture
 
 **Target Venues**: *Automation in Construction* (Elsevier, IF: 10.3) | *Advanced Engineering Informatics* (Elsevier, IF: 8.0)  
-**Companion Documents**: [`paper_idea.md`](file:///c:/Users/lenovo/OneDrive%20-%20University%20of%20Nevada,%20Reno/extra%20research/structural_engineering/research%20paper/paper_idea.md), [`01_introduction.md`](file:///c:/Users/lenovo/OneDrive%20-%20University%20of%20Nevada,%20Reno/extra%20research/structural_engineering/research%20paper/manuscript/01_introduction.md), [`04_experimental_setup.md`](file:///c:/Users/lenovo/OneDrive%20-%20University%20of%20Nevada,%20Reno/extra%20research/structural_engineering/research%20paper/manuscript/04_experimental_setup.md)
+**Companion Documents**: [`paper_idea.md`](../paper_idea.md), [`01_introduction.md`](01_introduction.md), [`04_experimental_setup.md`](04_experimental_setup.md)
 
 ---
 
@@ -25,7 +25,7 @@ where:
    - $\mathcal{C}_t$ encompasses parameterized geometric cross-sections (e.g., rectangular $b \times h$, circular diameter $D$, wide-flange AISC sections) with derived sectional properties (cross-sectional area $A$, shear areas $A_{s2}, A_{s3}$, torsional constant $J$, and principal second moments of area $I_2, I_3$).
    - $\mathcal{B}_t = \{b_i \in \{0, 1\}^6 \mid i \in \mathcal{I}_{\text{supp}}\}$ specifies kinematic boundary constraints across the 6 degrees of freedom (DOFs) per node: translations $(u_x, u_y, u_z)$ and rotations $(\theta_x, \theta_y, \theta_z)$.
    - $\mathcal{U}_t = (u_{\text{force}}, u_{\text{length}}, u_{\text{mass}}, u_{\text{time}})$ enforces the dimensional unit system (e.g., $\text{SI}: [\text{kN}, \text{m}, \text{kg}, \text{s}]$ or $\text{US Customary}: [\text{kip}, \text{in}, \text{slug}, \text{s}]$).
-2. $\mathcal{L}_t = (\mathcal{P}_{\text{load}}, \mathcal{C}_{\text{comb}})$ denotes the codified loading environment, comprising discrete load patterns (Dead $D$, Live $L$, Roof Live $L_r$, Wind $W$, Earthquake $E$) and factored load combinations $\mathcal{C}_{\text{comb}} = \left\{ \sum \gamma_{c, j} L_j \right\}$ defined per ASCE 7-16/22 and IBC specifications.
+2. $\mathcal{L}_t = (\mathcal{P}_{\text{load}}, \mathcal{C}_{\text{comb}})$ denotes the codified loading environment, comprising discrete load patterns (Dead $D$, Superimposed Dead $SD$, Live $L$, Roof Live $L_r$, Earthquake $E$) and factored LRFD load combinations $\mathcal{C}_{\text{comb}} = \left\{ \sum \gamma_{c, j} L_j \right\}$ defined per ASCE 7-16/22 and IBC specifications.
 3. $\mathcal{R}_t^{\text{FEA}}$ contains deterministic linear and second-order static finite element analysis results, including node displacement vectors $\mathbf{u} \in \mathbb{R}^{6 N}$, global reaction vectors $\mathbf{R} \in \mathbb{R}^{6 N_{\text{supp}}}$, and 13-station internal force envelopes $\mathbf{f}_e(x) = [P, V_2, V_3, T, M_2, M_3]^T$.
 4. $\mathcal{R}_t^{\text{dyn}}$ encapsulates dynamic earthquake mechanics results, including generalized modal eigenvalues $\omega_n^2$, mode shape matrices $\boldsymbol{\Phi}$, Complete Quadratic Combination (CQC) Response Spectrum Analysis (RSA) demands, and Newmark-Beta time-history integration records $\mathbf{u}(t), \dot{\mathbf{u}}(t), \ddot{\mathbf{u}}(t)$.
 5. $\mathcal{R}_t^{\text{des}}$ contains codified design verification outputs computed per ACI 318-19/25 and AISC 360-16, detailing governing Demand-Capacity Ratios ($\text{DCR}$), failure mode classifications, and minimum transverse shear reinforcement spacing.
@@ -93,7 +93,7 @@ The [`struct_load`](file:///c:/Users/lenovo/OneDrive%20-%20University%20of%20Nev
    $$L = L_0 \left(0.25 + \frac{4.57}{\sqrt{K_{LL} A_T}}\right) \ge 0.50 L_0 \quad (\text{or } 0.40 L_0 \text{ for multi-story columns})$$
 
 2. **Effective Seismic Weight ($W$)**: Per ASCE 7-22 §12.7.2, the total effective seismic weight $W$ accounts for all dead loads plus codified fractions of other loads:
-   $$W = \sum D + 0.25 P_{\text{storage}} + \sum W_{\text{partition}} + 0.20 S$$
+   $$W = \sum D + 0.25 P_{\text{storage}} + \sum W_{\text{partition}}$$
 
 3. **ASCE 7-22 Equivalent Lateral Force (ELF) Procedure**: Given mapped risk-targeted spectral response parameters $S_s, S_1$ and site coefficients $F_a, F_v$, the design spectral response acceleration parameters $S_{DS} = \frac{2}{3} F_a S_s$ and $S_{D1} = \frac{2}{3} F_v S_1$ are computed. The total seismic base shear $V_b$ is:
    $$V_b = C_s W$$

@@ -2,7 +2,7 @@
 Benchmark Telemetry Analysis & Publication Figure Generator
 ============================================================
 
-Analyzes JSON logs from `research paper/benchmarks/results/` and generates:
+Analyzes JSON logs from `research_paper/benchmarks/results/` and generates:
 1. Publication-quality comparative figures (TCR, CCR, DCR convergence trajectories).
 2. Formatted Markdown and LaTeX tables for Section 5 of the journal paper.
 
@@ -11,8 +11,8 @@ ensuring that no previous results or plots are ever overwritten or replaced.
 
 Usage
 -----
-python "research paper/benchmarks/analyze_results.py"
-python "research paper/benchmarks/analyze_results.py" --all-runs
+python "research_paper/benchmarks/analyze_results.py"
+python "research_paper/benchmarks/analyze_results.py" --all-runs
 """
 
 import argparse

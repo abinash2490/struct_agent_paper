@@ -9,12 +9,12 @@
 
 Before assessing the cognitive orchestration capabilities of the neural agent, the numerical fidelity of the underlying symbolic mechanics engines ([`fem3d`](file:///c:/Users/lenovo/OneDrive%20-%20University%20of%20Nevada,%20Reno/extra%20research/structural_engineering/fem3d) and [`structdyn`](file:///c:/Users/lenovo/OneDrive%20-%20University%20of%20Nevada,%20Reno/extra%20research/structural_engineering/structdyn)) was verified against commercial structural engineering industry standards: **CSI SAP2000 (v24.0.0)** and **CSI ETABS (v21.0.0)**. 
 
-Verification was performed across three benchmark configurations using [`verify_cae_parity.py`](file:///c:/Users/lenovo/OneDrive%20-%20University%20of%20Nevada,%20Reno/extra%20research/structural_engineering/research%20paper/benchmarks/verify_cae_parity.py):
+Verification was performed across three benchmark configurations using [`verify_cae_parity.py`](../benchmarks/verify_cae_parity.py):
 1. **2D Single-Bay Portal Frame (`sample_frame.s2k`)**: In-plane bending, Timoshenko shear deformation, and eigenvalue modal vibration periods ($T_1, T_2, T_3$).
 2. **2D Portal Frame (`sample_frame.e2k`)**: ETABS exchange format verifying nodal axial column shortening and base reactions.
 3. **3D 3-Story Multi-Bay Space Frame (`frame.s2k`)**: 36 joints, 58 elements, 3 stories, evaluating dead/live vertical reactions, 3D floor deflections, and coupled translational/torsional modal periods ($T_1=0.4337\text{ s}, T_2=0.4164\text{ s}, T_3=0.3961\text{ s}$).
 
-As documented in Table 1 ([`table_solver_verification.md`](file:///c:/Users/lenovo/OneDrive%20-%20University%20of%20Nevada,%20Reno/extra%20research/structural_engineering/research%20paper/manuscript/tables/table_solver_verification.md)), the maximum relative discrepancy between our open-core symbolic solvers and the CSI reference suites is **$0.217\%$** across all evaluated displacements, reactions, and modal periods, well within the target threshold of $<0.50\%$. Global static equilibrium ($\sum F_z = 0$) matches to machine precision. This confirms that the downstream evaluation of the AI agent is grounded in rigorous structural mechanics.
+As documented in Table 1 ([`table_solver_verification.md`](tables/table_solver_verification.md)), the maximum relative discrepancy between our open-core symbolic solvers and the CSI reference suites is **$0.217\%$** across all evaluated displacements, reactions, and modal periods, well within the target threshold of $<0.50\%$. Global static equilibrium ($\sum F_z = 0$) matches to machine precision. This confirms that the downstream evaluation of the AI agent is grounded in rigorous structural mechanics.
 
 ---
 

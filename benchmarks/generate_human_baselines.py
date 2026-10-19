@@ -11,10 +11,10 @@ For each case:
 3. Solves the structural system using fem2d, fem3d, and structdyn.
 4. Performs ACI 318 code checks to guarantee DCR <= 1.0.
 5. Computes the baseline concrete volume (V_baseline).
-6. Writes the verified baseline data into `research paper/benchmarks/benchmark_cases.json`.
+6. Writes the verified baseline data into `research_paper/benchmarks/benchmark_cases.json`.
 
 Usage:
-    python "research paper/benchmarks/generate_human_baselines.py"
+    python "research_paper/benchmarks/generate_human_baselines.py"
 """
 
 import json
@@ -41,7 +41,7 @@ HUMAN_BASELINES_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "A02_Portal_Frame_Storage": {
         "num_bays": 1, "bay_width": 8.0, "num_stories": 1, "story_height": 4.0, "dimension": "2d",
-        "col_b": 0.40, "col_h": 0.40, "beam_b": 0.35, "beam_h": 0.65,
+        "col_b": 0.50, "col_h": 0.50, "beam_b": 0.35, "beam_h": 0.65,
         "occupancy": "storage_heavy", "tributary_width": 4.5, "analysis": "static"
     },
     "A03_2Bay_2Story_Office": {
@@ -68,7 +68,7 @@ HUMAN_BASELINES_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "A08_2D_Overstressed_Portal_Reflection": {
         "num_bays": 1, "bay_width": 7.0, "num_stories": 1, "story_height": 3.5, "dimension": "2d",
-        "col_b": 0.40, "col_h": 0.40, "beam_b": 0.35, "beam_h": 0.60,
+        "col_b": 0.50, "col_h": 0.50, "beam_b": 0.40, "beam_h": 0.70,
         "occupancy": "storage_heavy", "tributary_width": 6.0, "analysis": "static"
     },
 
@@ -91,7 +91,7 @@ HUMAN_BASELINES_CATALOG: Dict[str, Dict[str, Any]] = {
     "B05_3D_Response_Spectrum_X": {
         "num_bays": 2, "bay_width": 6.0, "num_stories": 3, "story_height": 3.5, "dimension": "3d",
         "bays_x": 2, "bays_y": 2, "bay_width_x": 6.0, "bay_width_y": 6.0,
-        "col_b": 0.50, "col_h": 0.50, "beam_b": 0.35, "beam_h": 0.55,
+        "col_b": 0.80, "col_h": 0.80, "beam_b": 0.40, "beam_h": 0.65,
         "occupancy": "office", "tributary_width": 6.0, "analysis": "rsa_asce7",
         "sds": 1.1, "sd1": 0.55, "scale_factor": 9.80665 / 5.0
     },
@@ -122,13 +122,14 @@ HUMAN_BASELINES_CATALOG: Dict[str, Dict[str, Any]] = {
     # -------------------------------------------------------------
     "C01_Dynamics_ElCentro_TimeHistory": {
         "num_bays": 2, "bay_width": 6.0, "num_stories": 3, "story_height": 3.5, "dimension": "2d",
-        "col_b": 0.55, "col_h": 0.55, "beam_b": 0.40, "beam_h": 0.65,
+        "col_b": 0.65, "col_h": 0.65, "beam_b": 0.35, "beam_h": 0.60,
         "occupancy": "office", "tributary_width": 5.0, "analysis": "time_history",
         "ground_motion": "elcentro"
     },
     "C03_CAE_SAP2000_RoundTrip": {
         "source": "sap2000",
-        "s2k_path": "struct_link/tests/fixtures/sample_frame.s2k",
+        "s2k_path": "research_paper/benchmarks/fixtures/exported_seismic_frame.s2k",
+        "col_b": 0.30, "col_h": 0.40, "beam_b": 0.25, "beam_h": 0.40,
         "analysis": "static"
     },
     "C06_Vision_To_Seismic_Design_Pipeline": {
@@ -140,7 +141,7 @@ HUMAN_BASELINES_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "C07_Seismic_TimeHistory_Dynamic_Reflection": {
         "num_bays": 2, "bay_width": 6.0, "num_stories": 3, "story_height": 3.5, "dimension": "2d",
-        "col_b": 0.55, "col_h": 0.55, "beam_b": 0.40, "beam_h": 0.65,
+        "col_b": 0.65, "col_h": 0.65, "beam_b": 0.35, "beam_h": 0.60,
         "occupancy": "office", "tributary_width": 5.0, "analysis": "time_history",
         "ground_motion": "elcentro"
     },
@@ -183,7 +184,7 @@ def calculate_concrete_volume(project: Any) -> float:
 
 def verify_and_update_baselines():
     repo_root = Path(__file__).resolve().parents[2]
-    cases_json_path = repo_root / "research paper" / "benchmarks" / "benchmark_cases.json"
+    cases_json_path = repo_root / "research_paper" / "benchmarks" / "benchmark_cases.json"
 
     print("=" * 95)
     print(" VERIFYING HUMAN PRACTICE CODE-COMPLIANT BASELINES (ACI 318)")

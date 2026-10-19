@@ -2,7 +2,7 @@
 
 **Paper Title**: *A Neuro-Symbolic Agentic Framework for Autonomous Structural Modeling, Code-Compliant Design, and Detailing from Multimodal Inputs*  
 **Target Venue**: *Automation in Construction* / *Advanced Engineering Informatics*  
-**Companion Blueprint**: `research paper/paper_idea.md`  
+**Companion Blueprint**: `research_paper/paper_idea.md`  
 
 ---
 
@@ -22,34 +22,34 @@ The experimental campaign is designed to rigorously test Hypotheses H1–H3 acro
 The benchmark suite consists of **24 structural engineering problems** divided into three progressive groups (18 cases requiring full ACI 318 code compliance verification and 6 cases evaluating pure modal dynamics, 3D kinematics, vision compilation, or CAE round-trip interoperability):
 
 ### Group A: 2D Plane Frames (8 Cases) — Gravity, Modal Dynamics & Response Spectrum
-* **A01 (`A01_Portal_Frame_Office`)**: Single-Bay RC Portal Frame ($L=6.0\text{ m}, H=3.5\text{ m}$) under ASCE 7 office gravity loads ($w_{\text{trib}}=4.0\text{ m}$), fixed base, ACI 318 design, and production DXF drawing generation ($V_{\text{base}} = 1.757\text{ m}^3, \text{DCR}_{\text{base}} = 0.846$).
-* **A02 (`A02_Portal_Frame_Storage`)**: Wide-Span Portal Frame ($L=8.0\text{ m}, H=4.0\text{ m}$) under heavy industrial storage gravity loads ($w_{\text{trib}}=4.5\text{ m}$) and ACI 318 checks ($V_{\text{base}} = 3.100\text{ m}^3, \text{DCR}_{\text{base}} = 0.699$).
-* **A03 (`A03_2Bay_2Story_Office`)**: 2-Bay 2-Story RC Moment Frame ($L=5.0\text{ m}, H=3.2\text{ m}$) under office gravity loads ($w_{\text{trib}}=5.0\text{ m}$) and ACI 318 verification ($V_{\text{base}} = 5.772\text{ m}^3, \text{DCR}_{\text{base}} = 0.998$).
-* **A04 (`A04_2Bay_3Story_Residential`)**: 2-Bay 3-Story Frame ($L=6.0\text{ m}, H=3.0\text{ m}$) under residential gravity loads ($w_{\text{trib}}=4.5\text{ m}$) and ACI 318 design ($V_{\text{base}} = 9.720\text{ m}^3, \text{DCR}_{\text{base}} = 0.846$).
+* **A01 (`A01_Portal_Frame_Office`)**: Single-Bay RC Portal Frame ($L=6.0\text{ m}, H=3.5\text{ m}$) under ASCE 7 office gravity loads ($w_{\text{trib}}=4.0\text{ m}$), fixed base, ACI 318 design, and production DXF drawing generation saved to `research_paper/drawings/A01_portal_frame.dxf` ($V_{\text{base}} = 1.757\text{ m}^3, \text{DCR}_{\text{base}} = 0.846$).
+* **A02 (`A02_Portal_Frame_Storage`)**: Wide-Span Portal Frame ($L=8.0\text{ m}, H=4.0\text{ m}$) under heavy industrial storage gravity loads ($w_{\text{trib}}=4.5\text{ m}$) and ACI 318 checks ($V_{\text{base}} = 3.820\text{ m}^3, \text{DCR}_{\text{base}} = 0.864$).
+* **A03 (`A03_2Bay_2Story_Office`)**: 2-Bay 2-Story RC Moment Frame ($L=5.0\text{ m}, H=3.2\text{ m}$) under office gravity loads ($w_{\text{trib}}=5.0\text{ m}$) and ACI 318 verification ($V_{\text{base}} = 5.772\text{ m}^3, \text{DCR}_{\text{base}} = 0.599$).
+* **A04 (`A04_2Bay_3Story_Residential`)**: 2-Bay 3-Story Frame ($L=6.0\text{ m}, H=3.0\text{ m}$) under residential gravity loads ($w_{\text{trib}}=4.5\text{ m}$) and ACI 318 design ($V_{\text{base}} = 9.720\text{ m}^3, \text{DCR}_{\text{base}} = 0.677$).
 * **A05 (`A05_2D_Modal_Dynamics`)**: 2-Bay 3-Story Frame ($L=6.0\text{ m}, H=3.5\text{ m}$) eigenvalue modal analysis extracting fundamental periods ($T_1, T_2, T_3$) and mode shapes via `structdyn`.
 * **A06 (`A06_2D_Response_Spectrum_ASCE7`)**: 2-Bay 3-Story Frame ($L=6.0\text{ m}, H=3.5\text{ m}$) Response Spectrum Analysis (RSA) using ASCE 7 design spectrum ($S_{DS}=1.0g, S_{D1}=0.6g$), CQC modal combination, gravity enveloping, and ACI 318 checks ($V_{\text{base}} = 13.309\text{ m}^3, \text{DCR}_{\text{base}} = 0.880$).
 * **A07 (`A07_2D_RSA_Ground_Motion`)**: 3-Bay 4-Story Frame ($L=5.5\text{ m}, H=3.5\text{ m}$) Response Spectrum Analysis computed from the 1994 Northridge ground motion record with CQC combination and ACI 318 checks ($V_{\text{base}} = 26.705\text{ m}^3, \text{DCR}_{\text{base}} = 0.880$).
-* **A08 (`A08_2D_Overstressed_Portal_Reflection`)**: Self-Healing Reflection benchmark on a 1-bay 1-story frame ($L=7.0\text{ m}, H=3.5\text{ m}$) deliberately initialized with undersized members ($0.25\times0.25\text{ m}$ columns, $0.25\times0.30\text{ m}$ beams) under heavy storage loads ($w_{\text{trib}}=6.0\text{ m}$), testing autonomous resizing via `modify_project` until $\text{DCR} \le 1.0$ followed by DXF CAD generation ($V_{\text{base}} = 2.590\text{ m}^3, \text{DCR}_{\text{base}} = 0.814$).
+* **A08 (`A08_2D_Overstressed_Portal_Reflection`)**: Self-Healing Reflection benchmark on a 1-bay 1-story frame ($L=7.0\text{ m}, H=3.5\text{ m}$) deliberately initialized with undersized members ($0.25\times0.25\text{ m}$ columns, $0.25\times0.30\text{ m}$ beams) under heavy storage loads ($w_{\text{trib}}=6.0\text{ m}$), testing autonomous resizing via `modify_project` until $\text{DCR} \le 1.0$ followed by DXF CAD generation saved to `research_paper/drawings/A08_portal_frame.dxf` ($V_{\text{base}} = 3.710\text{ m}^3, \text{DCR}_{\text{base}} = 0.797$).
 
 ### Group B: 3D Space Frames (8 Cases) — 3D Biaxial Gravity, Seismic ELF & 3D RSA
-* **B01 (`B01_3D_2x2_2Story_Office`)**: Regular 3D Space Frame ($2 \times 2$ bays at $6.0\text{ m}$, 2 stories at $3.5\text{ m}$) under 3D floor gravity loads, LRFD combinations, and 3D direct stiffness analysis.
+* **B01 (`B01_3D_2x2_2Story_Office`)**: 3D Space Frame (2-Story Hostel Block Plan): $2 \times 2$ bays at $6.0\text{ m}$, 2 stories at $3.5\text{ m}$, based on the 2-story hostel block framing plan (`research_paper/benchmarks/fixtures/hostel_block_plan_2 story.PNG`) under residential floor gravity loads, LRFD combinations, and 3D direct stiffness analysis.
 * **B02 (`B02_3D_3x2_3Story_Gravity`)**: 3D Space Frame ($3 \times 2$ bays at $5.0\text{ m} \times 6.0\text{ m}$, 3 stories at $3.2\text{ m}$) under office gravity loads with 3D biaxial column checks ($V_{\text{base}} = 85.104\text{ m}^3, \text{DCR}_{\text{base}} = 0.846$).
-* **B03 (`B03_3D_2x2_Seismic_ELF`)**: 3D Space Frame ($2 \times 2$ bays at $6.0\text{ m}$, 3 stories at $3.5\text{ m}$) under ASCE 7 Seismic Equivalent Lateral Force (ELF) ($S_s = 1.2g, S_1 = 0.5g$, Site Class D, $R=5.0$) and 3D Bresler P-M2-M3 interaction checks ($V_{\text{base}} = 143.100\text{ m}^3, \text{DCR}_{\text{base}} = 0.989$).
+* **B03 (`B03_3D_2x2_Seismic_ELF`)**: 3D Space Frame ($2 \times 2$ bays at $6.0\text{ m}$, 3 stories at $3.5\text{ m}$) under ASCE 7 Seismic Equivalent Lateral Force (ELF) ($S_{DS} = 1.2g, S_{D1} = 0.5g$, $R=5.0$) and 3D Bresler P-M2-M3 interaction checks ($V_{\text{base}} = 143.100\text{ m}^3, \text{DCR}_{\text{base}} = 0.983$).
 * **B04 (`B04_3D_Modal_Dynamics`)**: 3D Space Frame ($2 \times 2$ bays, 3 stories) 3D modal eigenvalue analysis extracting translational/torsional periods and modal mass participation factors.
-* **B05 (`B05_3D_Response_Spectrum_X`)**: 3D Space Frame ($2 \times 2$ bays, 3 stories) Response Spectrum Analysis along the X-direction per ASCE 7 ($S_{DS}=1.1g, S_{D1}=0.55g$) with CQC combination and biaxial ACI 318 checks ($V_{\text{base}} = 65.205\text{ m}^3, \text{DCR}_{\text{base}} = 0.880$).
-* **B06 (`B06_3D_Response_Spectrum_MultiDir`)**: 3D Space Frame ($3 \times 2$ bays, 3 stories) multi-directional Response Spectrum Analysis (X and Y) under the 1940 El Centro spectrum with CQC combination and biaxial checks ($V_{\text{base}} = 107.700\text{ m}^3, \text{DCR}_{\text{base}} = 0.880$).
-* **B07 (`B07_3D_HighSeismic_Reflection`)**: 3D Space Frame ($2 \times 2$ bays, 2 stories) Self-Healing Reflection initialized with undersized columns ($0.35\times0.35\text{ m}$) under high seismic ELF loads ($\text{DCR}_0 > 1.3$), iteratively enlarging sections via `modify_project` until $\text{DCR} \le 1.0$ ($V_{\text{base}} = 56.857\text{ m}^3, \text{DCR}_{\text{base}} = 0.970$).
-* **B08 (`B08_3D_Asymmetric_Seismic`)**: 3D Asymmetric Space Frame (3 stories) with plan irregularity and torsional eccentricity under bi-directional seismic loading, evaluating torsional drift amplification and corner column demands ($V_{\text{base}} = 113.636\text{ m}^3, \text{DCR}_{\text{base}} = 0.995$).
+* **B05 (`B05_3D_Response_Spectrum_X`)**: 3D Space Frame ($2 \times 2$ bays, 3 stories) Response Spectrum Analysis along the X-direction per ASCE 7 ($S_{DS}=1.1g, S_{D1}=0.55g$) with CQC combination and biaxial ACI 318 checks ($V_{\text{base}} = 116.640\text{ m}^3, \text{DCR}_{\text{base}} = 0.929$).
+* **B06 (`B06_3D_Response_Spectrum_MultiDir`)**: 3D Space Frame ($3 \times 2$ bays, 3 stories) multi-directional Response Spectrum Analysis (X and Y) under the 1940 El Centro spectrum with CQC combination and biaxial checks ($V_{\text{base}} = 107.700\text{ m}^3, \text{DCR}_{\text{base}} = 0.948$).
+* **B07 (`B07_3D_HighSeismic_Reflection`)**: 3D Space Frame ($2 \times 2$ bays, 2 stories) Self-Healing Reflection initialized with undersized columns ($0.35\times0.35\text{ m}$) under high seismic ELF loads ($\text{DCR}_0 > 1.3$), iteratively enlarging sections via `modify_project` until $\text{DCR} \le 1.0$ ($V_{\text{base}} = 56.857\text{ m}^3, \text{DCR}_{\text{base}} = 0.626$).
+* **B08 (`B08_3D_Asymmetric_Seismic`)**: 3D Asymmetric Space Frame (3 stories) with plan irregularity and torsional eccentricity under bi-directional seismic loading, evaluating torsional drift amplification and corner column demands ($V_{\text{base}} = 113.636\text{ m}^3, \text{DCR}_{\text{base}} = 0.940$).
 
 ### Group C: Advanced Dynamic, Multimodal Vision, CAE & CAD Pipelines (8 Cases)
-* **C01 (`C01_Dynamics_ElCentro_TimeHistory`)**: 2D 2-Bay 3-Story Frame dynamic earthquake time-history analysis under the 1940 El Centro record via Newmark-Beta integration in `structdyn`, peak internal force enveloping, and ACI 318 design ($V_{\text{base}} = 18.889\text{ m}^3, \text{DCR}_{\text{base}} = 0.998$).
+* **C01 (`C01_Dynamics_ElCentro_TimeHistory`)**: 2D 2-Bay 3-Story Frame dynamic earthquake time-history analysis under the 1940 El Centro record via Newmark-Beta integration in `structdyn`, peak internal force enveloping, and ACI 318 design ($V_{\text{base}} = 20.869\text{ m}^3, \text{DCR}_{\text{base}} = 0.951$).
 * **C02 (`C02_Dynamics_Northridge_TimeHistory`)**: 3D $2 \times 2$ Bay 2-Story Space Frame direct numerical time-history integration under the 1994 Northridge record, extracting peak floor acceleration, drift history, and base shear time series.
-* **C03 (`C03_CAE_SAP2000_RoundTrip`)**: CSI SAP2000 CAE round-trip interoperability importing `sample_frame.s2k`, validating geometry, executing linear static FEA and ACI 318 checks, and re-exporting to `.s2k` ($V_{\text{base}} = 1.710\text{ m}^3, \text{DCR}_{\text{base}} = 0.846$).
-* **C04 (`C04_CAE_ETABS_RoundTrip`)**: CSI ETABS CAE round-trip interoperability importing `sample_frame.e2k`, verifying multi-story connectivity and boundary restraints, running analysis, and re-exporting to `.e2k`.
-* **C05 (`C05_Vision_FloorPlan_Draft_Ingestion`)**: Multimodal architectural floor plan ingestion via `struct_agent.vision`, compiling a 3-story 3D structural frame (`create_model_from_plan_draft`) and verifying topological connectivity.
-* **C06 (`C06_Vision_To_Seismic_Design_Pipeline`)**: End-to-end multimodal floor-plan-to-seismic design pipeline: compiling a 3D frame from floor plan specification $\rightarrow$ ASCE 7 seismic ELF loading ($S_s=1.2g, S_1=0.5g$) $\rightarrow$ 3D FEA $\rightarrow$ ACI 318 biaxial verification ($V_{\text{base}} = 92.664\text{ m}^3, \text{DCR}_{\text{base}} = 0.992$).
-* **C07 (`C07_Seismic_TimeHistory_Dynamic_Reflection`)**: Dynamic Self-Healing Reflection on a 2-bay 3-story frame initialized with undersized $0.30\times0.30\text{ m}$ columns under the 1940 El Centro time-history record ($\text{DCR}_0 > 1.20$), iteratively resizing columns and re-integrating equations of motion until $\text{DCR} \le 1.0$ ($V_{\text{base}} = 18.889\text{ m}^3, \text{DCR}_{\text{base}} = 0.998$).
-* **C08 (`C08_Full_Pipeline_Autonomous_CAD_Production`)**: Full autonomous seismic design-to-CAD pipeline on a 2-bay 2-story frame ($L=5.0\text{ m}, H=3.2\text{ m}$): gravity + ASCE 7 Response Spectrum Analysis $\rightarrow$ ACI 318 design $\rightarrow$ production AutoCAD `.dxf` drawings with rebar schedules ($V_{\text{base}} = 6.072\text{ m}^3, \text{DCR}_{\text{base}} = 0.846$).
+* **C03 (`C03_CAE_SAP2000_RoundTrip`)**: CSI SAP2000 CAE round-trip interoperability importing `exported_seismic_frame.s2k` (`research_paper/benchmarks/fixtures/exported_seismic_frame.s2k`), validating geometry, executing linear static FEA and ACI 318 checks, and re-exporting to `.s2k` as `research_paper/benchmarks/results/exported_sap2000.s2k` ($V_{\text{base}} = 12.040\text{ m}^3, \text{DCR}_{\text{base}} = 0.740$).
+* **C04 (`C04_CAE_ETABS_RoundTrip`)**: CSI ETABS CAE round-trip interoperability importing `exported_seismic_frame.e2k` (`research_paper/benchmarks/fixtures/exported_seismic_frame.e2k`), verifying multi-story connectivity and boundary restraints, running analysis, and re-exporting to `.e2k` as `research_paper/benchmarks/results/exported_etabs.e2k`.
+* **C05 (`C05_Vision_FloorPlan_Draft_Ingestion`)**: Multimodal architectural floor plan ingestion via `struct_agent.vision` using the 3-story school plan (`research_paper/benchmarks/fixtures/floor_plan_3story_school.PNG`), compiling a 3-story 3D structural frame (`create_model_from_plan_draft`) and verifying topological connectivity.
+* **C06 (`C06_Vision_To_Seismic_Design_Pipeline`)**: End-to-end multimodal floor-plan-to-seismic design pipeline on the 4-story commercial mall (`research_paper/benchmarks/fixtures/mall_plan_4story.PNG`): compiling a 3D frame from floor plan specification $\rightarrow$ ASCE 7 seismic ELF loading ($S_{DS}=1.2g, S_{D1}=0.5g$) $\rightarrow$ 3D FEA $\rightarrow$ ACI 318 biaxial verification ($V_{\text{base}} = 92.664\text{ m}^3, \text{DCR}_{\text{base}} = 0.866$).
+* **C07 (`C07_Seismic_TimeHistory_Dynamic_Reflection`)**: Dynamic Self-Healing Reflection on a 2-bay 3-story frame initialized with undersized $0.30\times0.30\text{ m}$ columns under the 1940 El Centro time-history record ($\text{DCR}_0 > 1.20$), iteratively resizing columns and re-integrating equations of motion until $\text{DCR} \le 1.0$ ($V_{\text{base}} = 20.869\text{ m}^3, \text{DCR}_{\text{base}} = 0.951$).
+* **C08 (`C08_Full_Pipeline_Autonomous_CAD_Production`)**: Full autonomous seismic design-to-CAD pipeline on a 2-bay 2-story frame ($L=5.0\text{ m}, H=3.2\text{ m}$): gravity + ASCE 7 Response Spectrum Analysis $\rightarrow$ ACI 318 design $\rightarrow$ production AutoCAD `.dxf` drawings with rebar schedules saved to `research_paper/drawings/C08_seismic_frame.dxf` ($V_{\text{base}} = 6.072\text{ m}^3, \text{DCR}_{\text{base}} = 0.846$).
 
 ---
 
@@ -104,39 +104,36 @@ Evaluated on code-compliant designs ($\text{DCR}_{\text{gov}} \le 1.0$), where $
 ### Step 1: Activate Environment & Verify Baselines
 ```powershell
 conda activate structeng
-python "research paper/benchmarks/generate_human_baselines.py"
-
+python "research_paper/benchmarks/generate_human_baselines.py"
 ```
 
 ### Step 2: Execute Full & Ablated Benchmark Campaigns
 
 ```powershell
 # 1. Google Gemini 3.8 Flash (Full Agent vs. Ablated):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config full_agent --cases all
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config full_agent --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all
 
 # 2. Local Qwen 3.5 9B (Full Agent vs. Ablated):
-python "research paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --config full_agent --cases all
-python "research paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --config ablated --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --config full_agent --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --config ablated --cases all
 
 # 3. Cloud GPT-OSS 120B (Full Agent vs. Ablated):
-python "research paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --config full_agent --cases all
-python "research paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --config ablated --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --config full_agent --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --config ablated --cases all
 
 # 4. Cloud Nemotron 3 Ultra (Full Agent vs. Ablated):
-python "research paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --config full_agent --cases all
-python "research paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --config ablated --cases all
-
+python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --config full_agent --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --config ablated --cases all
 ```
 
 ### Step 3: Compile Telemetry Tables & Publication Figures
 
 ```powershell
-python "research paper/benchmarks/analyze_results.py"
-
+python "research_paper/benchmarks/analyze_results.py"
 ```
 
-This script processes all timestamped JSON logs in `research paper/benchmarks/results/` (without overwriting prior runs) and outputs:
+This script processes all timestamped JSON logs in `research_paper/benchmarks/results/` (without overwriting prior runs) and outputs:
 
 * `results/summary_table_<timestamp>.md`: Markdown table of $\text{TCR}$, $\text{CCR}$, $N_{\text{iter}}$, $\eta_{\text{vol}}$, and runtime ready for Section 5.
 * `plots/fig_benchmark_comparison_<timestamp>.png`: 300 DPI grouped bar chart of $\text{TCR}$ and $\text{CCR}$.

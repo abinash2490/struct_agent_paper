@@ -45,6 +45,7 @@ docs/source/api/
 
 # Generated figures / plots
 *.png
+*.PNG
 *.jpg
 *.jpeg
 *.svg

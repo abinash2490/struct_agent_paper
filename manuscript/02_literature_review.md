@@ -93,7 +93,7 @@ Autonomous design is incomplete if it terminates at numerical analysis; structur
   - However, direct geometric extraction from raster images frequently suffers from pixel-scaling distortion. State-of-the-art approaches combine VLM semantic parsing of callouts/dimension lines with structured drafting engines (`FloorPlanDraft`) and multi-turn human-in-the-loop clarification for missing vertical heights.
 
 * **Code Compliance Automation (ASCE 7 & ACI 318)**:
-  - Automated building code evaluation requires rigorous codified logic: tributary area distribution, ASCE 7 Equivalent Lateral Force (ELF) seismic distribution, directional wind MWFRS pressure, and factored LRFD/ASD combinations.
+  - Automated building code evaluation requires rigorous codified logic: tributary area distribution, ASCE 7 Equivalent Lateral Force (ELF) seismic distribution, and factored LRFD/ASD combinations.
   - Downstream reinforced concrete design requires ACI 318-19/25 flexure, one-way/punching shear, column P-M interaction surfaces, and rebar development lengths ($L_d$).
 
 * **Automated CAD Detailing (DXF Generation)**:
@@ -110,7 +110,7 @@ A synthesis of the 2023–2026 literature reveals seven prominent gaps:
 | **1. Calculation Integrity** | Most papers either test prompt math (high hallucinations) or single-script generation (frequent crashes). | **Strict Neuro-Symbolic Separation**: Zero arithmetic in LLM; 100% calculation performed by verified solvers (`fem2d`, `fem3d`, `structdyn`). |
 | **2. Multi-Dimensional Solvers** | Prior works focus only on 2D trusses or simplified 1D beams. | **Unified 2D & 3D Solvers**: Native Euler-Bernoulli and Timoshenko beam-columns, buckling, modal dynamics, and hinges. |
 | **3. Dynamic & Seismic Analysis** | Almost completely absent in LLM agent literature; limited to static gravity. | **Integrated Structural Dynamics (`structdyn`)**: Multi-degree-of-freedom (MDF), Newmark-Beta direct time-history integration (El Centro), RSA, and peak force enveloping. |
-| **4. Building Code Automation** | Generic load assumptions without formal ASCE 7 / IBC code procedures. | **Deterministic Code Loading (`struct_load`)**: Occupancy live load reduction, tributary area calculation, ASCE 7 ELF seismic, MWFRS wind, and LRFD combinations. |
+| **4. Building Code Automation** | Generic load assumptions without formal ASCE 7 / IBC code procedures. | **Deterministic Code Loading (`struct_load`)**: Occupancy live load reduction, tributary area calculation, ASCE 7 ELF seismic, and LRFD combinations. |
 | **5. Standardized RC Design** | Limited to simplified rectangular beam flexure equations ($M_u / \phi f_c' b d^2$). | **Comprehensive ACI 318-19 & 318-25 Engine**: Beams, columns (P-M curves), slabs, walls, footings, and automated cost-optimal section search. |
 | **6. Commercial Interoperability** | Disconnected from industry software or dependent on proprietary closed APIs. | **Bidirectional File Exchange (`struct_link`)**: Full-fidelity round-trip `.s2k` (SAP2000) and `.e2k` (ETABS) exchange. |
 | **7. Production CAD Detailing** | Workflow stops at theoretical required steel area ($A_s$ in $\text{mm}^2$ or $\text{in}^2$). | **CAD DXF Generation (`struct_draw`)**: Production-ready AutoCAD drawings with rebar schedules, section callouts, and multileaders. |

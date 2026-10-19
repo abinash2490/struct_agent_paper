@@ -10,16 +10,16 @@ economy ratio, runtime) to unique timestamped JSON files.
 Usage Examples
 --------------
 # Run all 24 cases with Google Gemini 3.8 Flash (Full Agent vs. Ablated):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all
 
 # Run Direct Zero-Shot LLM baseline (no tools) to measure Calculation Hallucination Rate (CHR):
-python "research paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config direct_llm --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config direct_llm --cases all
 
 # Run Group A (2D cases) with local/cloud Ollama models:
-python "research paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases Group_A_2D
-python "research paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --cases Group_A_2D
-python "research paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --cases Group_A_2D
 """
 
 import argparse
