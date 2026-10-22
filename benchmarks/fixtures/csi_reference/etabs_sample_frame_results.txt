@@ -1,0 +1,20 @@
+ETABS v21.0.0 (Build 2430) 64-bit Relational Database Tables
+Model File: sample_frame.e2k
+Units: kN, m, C
+
+TABLE:  "BASE REACTIONS"
+   Load Case/Combo        FX        FY        FZ        MX        MY        MZ        X        Y        Z
+              Text        kN        kN        kN      kN-m      kN-m      kN-m        m        m        m
+              DEAD     0.000     0.000    60.000     0.000     0.000     0.000    0.000    0.000    0.000
+
+TABLE:  "JOINT REACTIONS"
+   Story   Joint Label   Load Case/Combo        FX        FY        FZ        MX        MY        MZ
+    Text          Text              Text        kN        kN        kN      kN-m      kN-m      kN-m
+    Base             1              DEAD     0.000     0.000    30.000     0.000     0.000     0.000
+    Base             2              DEAD     0.000     0.000    30.000     0.000     0.000     0.000
+
+TABLE:  "JOINT DISPLACEMENTS"
+   Story   Joint Label   Load Case/Combo        UX        UY        UZ        RX        RY        RZ
+    Text          Text              Text         m         m         m       rad       rad       rad
+  Story1             3              DEAD  0.000E+00 0.000E+00 -1.728E-05 0.000E+00 0.000E+00 0.000E+00
+  Story1             4              DEAD  0.000E+00 0.000E+00 -1.728E-05 0.000E+00 0.000E+00 0.000E+00

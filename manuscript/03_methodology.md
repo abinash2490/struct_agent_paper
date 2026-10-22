@@ -222,7 +222,7 @@ The cognitive brain of the framework is implemented in [`struct_agent`](file:///
 |                                                                                                   |
 |  Multimodal Inputs:                                                                               |
 |  - Natural Language Prompts  ---> [struct_agent: AgentRunner & Vision Compiler]                   |
-|  - Raster/PDF Floor Plans    ---> (Gemini 3.8 Flash | Qwen3.5:9B | GPT-OSS:120B | Nemotron-Ultra) |
+|  - Raster/PDF Floor Plans    ---> (Gemini 3.8 Flash | Qwen 3.5:9B | Nemotron-3 | Gemma 4)      |
 |  - SAP2000/ETABS (.s2k/.e2k)                                   |                                  |
 |                                                                | Structured Tool Call (JSON)      |
 |                                                                v                                  |

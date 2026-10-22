@@ -26,7 +26,7 @@ To establish a rigorous methodological contribution for top-tier engineering inf
 
 * **RQ1 (Determinism & Hallucination Elimination)**:  
   *How does decoupling high-level semantic planning from numerical mechanics via ontology-validated tool interfaces impact calculation hallucination rates compared to direct zero-shot LLM prompting and raw script generation?*
-  - **Hypothesis 1 (H1)**: Direct LLM prompting and raw script generation exhibit calculation error and hallucination rates ($\text{CHR}$) exceeding 60% on indeterminate 2D/3D frame analysis, dynamic modal response, and biaxial ACI 318 capacity checks. By contrast, the proposed neuro-symbolic architecture guarantees $\text{CHR} = 0.0\%$ across all completed workflows by restricting all matrix algebra, dynamic integration, and code equations to verified symbolic solvers.
+  - **Hypothesis 1 (H1)**: Direct LLM prompting and raw script generation exhibit calculation error and hallucination rates ($\text{CHR}$) exceeding 60% on indeterminate 2D/3D frame analysis, dynamic modal response, and biaxial ACI 318 capacity checks. By contrast, the proposed neuro-symbolic architecture guarantees $\text{CHR} = 0.0\%$ with $\text{CCR}_{\text{claims}} = 100\%$ (all prompt-required quantities reported) across all completed workflows by restricting all matrix algebra, dynamic integration, and code equations to verified symbolic solvers.
 
 * **RQ2 (Autonomous Self-Healing Convergence & Material Economy)**:  
   *To what extent can a closed-loop agentic reflection mechanism—guided by symbolic Demand-Capacity Ratio ($\text{DCR}$) diagnostics—autonomously repair undersized or overstressed structural designs ($\text{DCR} > 1.0$) across static and seismic time-history regimes without human intervention?*
@@ -34,7 +34,7 @@ To establish a rigorous methodological contribution for top-tier engineering inf
 
 * **RQ3 (Multimodal Perception, Model Generalization & CAE Interoperability)**:  
   *How effectively does the schema-grounded framework generalize across frontier closed-source and open-weight LLM/VLM backbones when translating multimodal inputs (architectural floor plans, natural language, and CSI `.s2k`/`.e2k` files) into code-compliant designs and production `.dxf` drawings?*
-  - **Hypothesis 3 (H3)**: Structuring multimodal extraction around an intermediate semantic schema (`FloorPlanDraft` $\rightarrow$ `struct_core.Project`) enables both frontier cloud models (`gemini-3.8-flash`) and open-weight models (`qwen3.5:9b`, `gpt-oss:120b-cloud`, `nemotron-3-ultra:cloud`) to achieve high Task Completion Rates ($\text{TCR} > 85\%$) and 100% lossless round-trip fidelity with CSI SAP2000 and ETABS.
+  - **Hypothesis 3 (H3)**: Structuring multimodal extraction around an intermediate semantic schema (`FloorPlanDraft` $\rightarrow$ `struct_core.Project`) enables both frontier cloud models (`gemini-3.8-flash`) and open-weight models (`qwen3.5:9b`, `nemotron-3-super:cloud`, `gemma4:31b-cloud`) to achieve high Task Completion Rates ($\text{TCR} > 85\%$) and 100% lossless round-trip fidelity with CSI SAP2000 and ETABS.
 
 ---
 
@@ -46,7 +46,7 @@ To establish a rigorous methodological contribution for top-tier engineering inf
 |                                                                                                   |
 |  Multimodal Inputs:                                                                               |
 |  - Natural Language Prompts  ---> [struct_agent: AgentRunner & Vision Compiler]                   |
-|  - Raster/PDF Floor Plans    ---> (Gemini 3.8 Flash | Qwen3.5:9B | GPT-OSS:120B | Nemotron-Ultra) |
+|  - Raster/PDF Floor Plans    ---> (Gemini 3.8 Flash | Qwen3.5:9B | Nemotron-3-Super | Gemma4:31B)   |
 |  - SAP2000/ETABS (.s2k/.e2k)                                   |                                  |
 |                                                                | Structured Tool Call (JSON)      |
 |                                                                v                                  |
@@ -94,7 +94,7 @@ To establish a rigorous methodological contribution for top-tier engineering inf
 
 | Reviewer Criticism | How the Manuscript Defeats It |
 | --- | --- |
-| *"This reads like a software wrapper around an LLM rather than novel research."* | We formalize a **neuro-symbolic state-machine ontology**, prove mathematical parity against CSI SAP2000/ETABS ($<0.5\%$ discrepancy), and execute a rigorous **24-case empirical benchmark** across 4 configurations and 4 LLM backbones (closed and open-weight). |
+| *"This reads like a software wrapper around an LLM rather than novel research."* | We formalize a **neuro-symbolic state-machine ontology**, prove mathematical parity against CSI SAP2000/ETABS ($<0.5\%$ discrepancy), and execute a rigorous **24-case empirical benchmark** across 5 configurations and 4 LLM backbones (closed and open-weight). |
 | *"LLMs hallucinate math and cannot be trusted in life-safety structural design."* | We prove both architecturally and empirically ($\text{CHR} = 0.0\%$) that **the LLM never performs arithmetic or matrix algebra**. Every load, internal force, dynamic period, and ACI 318 capacity ratio is computed deterministically by symbolic solvers. |
 | *"Why use an LLM agent instead of a conventional genetic algorithm or script?"* | Conventional scripts cannot ingest ambiguous natural language, interpret raster architectural floor plans (`FloorPlanDraft`), resolve missing story heights via dialogue, or dynamically orchestrate multi-domain workflows spanning `.s2k` import, Newmark-Beta dynamics, and `.dxf` CAD detailing. |
 | *"Are the custom Python FEA and dynamic solvers actually accurate?"* | Section 5.1 includes a dedicated **Solver Verification & Commercial Parity** table comparing `fem2d`, `fem3d` (with Timoshenko shear deformation), and `structdyn` directly against CSI SAP2000 and textbook analytical solutions (Chopra). |
@@ -130,15 +130,15 @@ To establish a rigorous methodological contribution for top-tier engineering inf
 
 
 * **Section 4: Experimental Setup & Benchmark Protocol (`04_experimental_setup.md`)**
-* **4.1 The 24-Case Structural & Seismic Benchmark Suite**: Group A (8 2D plane frame static/dynamic cases), Group B (8 3D space frame ELF/RSA/torsional cases), and Group C (8 time-history, SAP2000/ETABS round-trip, multimodal vision, and full CAD pipeline cases).
-* **4.2 Evaluation Configurations & Baselines**: Baseline 1 (Direct Zero-Shot LLM), Baseline 2 (Code-Generation LLM), Baseline 3 (Ablated Single-Pass Agent without reflection), and Proposed (Full Neuro-Symbolic Agent with Reflection).
-* **4.3 Multi-Model Testbed**: Frontier cloud (`gemini-3.8-flash`) vs. local/cloud open-weight models (`qwen3.5:9b`, `gpt-oss:120b-cloud`, `nemotron-3-ultra:cloud`).
-* **4.4 Quantitative Metrics**: Task Completion Rate ($\text{TCR}$), Code Compliance Rate ($\text{CCR}$), Calculation Hallucination Rate ($\text{CHR}$), Convergence Iterations ($N_{\text{iter}}$), and Volumetric/Composite Material Economy ($\eta_{\text{vol}}, \eta_{\text{material}}$).
+* **4.1 The 24-Case Structural & Seismic Benchmark Suite**: Group A (8 2D plane frame static/dynamic cases), Group B (8 3D space frame ELF/RSA/bi-directional seismic cases), and Group C (8 time-history, SAP2000/ETABS round-trip, multimodal vision, and full CAD pipeline cases).
+* **4.2 Evaluation Configurations & Baselines**: Baseline 0 (Deterministic Heuristic), Baseline 1 (Direct Zero-Shot LLM), Baseline 2 (Code-Generation LLM), Baseline 3 (Ablated Single-Pass Agent without reflection), and Proposed (Full Neuro-Symbolic Agent with Reflection).
+* **4.3 Multi-Model Testbed**: Frontier cloud (`gemini-3.8-flash`) vs. local/cloud open-weight models (`qwen3.5:9b`, `nemotron-3-super:cloud`, `gemma4:31b-cloud`).
+* **4.4 Quantitative Metrics**: Task Completion Rate ($\text{TCR}$), Code Compliance Rate ($\text{CCR}$), Calculation Hallucination Rate ($\text{CHR}$ over claims made) alongside Claim Completeness Rate ($\text{CCR}_{\text{claims}}$), Convergence Iterations ($N_{\text{iter}}$), Volumetric/Composite Material Economy ($\eta_{\text{vol}}, \eta_{\text{material}}$), and Prompt-to-Schema Fidelity Rate ($\text{PSFR}$).
 
 
 * **Section 5: Results & Discussion (`05_results_and_discussion.md`)**
 * **5.1 Symbolic Solver Verification**: Numerical parity between `fem3d`/`structdyn` and CSI SAP2000/ETABS.
-* **5.2 Baseline Comparison & Hallucination Elimination**: Empirical proof of $\text{CHR} = 0.0\%$ vs. Baselines 1 & 2.
+* **5.2 Baseline Comparison & Hallucination Elimination**: Empirical proof of $\text{CHR} = 0.0\%$ paired with $\text{CCR}_{\text{claims}} = 100\%$ vs. Baselines 1 & 2.
 * **5.3 Multi-LLM Performance & Ablation Study**: Full Agent vs. Ablated Agent across all 24 benchmark cases and 4 LLM backbones.
 * **5.4 Self-Healing Convergence & Material Economy**: Analysis of $\text{DCR}$ trajectories ($N_{\text{iter}}$) and concrete volume efficiency ($\eta_{\text{vol}}$) relative to verified human baselines.
 * **5.5 End-to-End Case Studies**: Detailed walkthroughs of (i) Multimodal floor plan to 3D seismic design, (ii) 1940 El Centro time-history self-healing redesign, and (iii) Autonomous DXF detailing with Bar Bending Schedules inside `StructStudio` (`struct_gui`).

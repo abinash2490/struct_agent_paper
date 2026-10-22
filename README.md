@@ -97,23 +97,26 @@ python "research_paper/benchmarks/generate_human_baselines.py"
 ### 3. Execute Benchmark Runs
 
 ```powershell
+# Run deterministic heuristic baseline:
+python "research_paper/benchmarks/run_benchmarks.py" --config heuristic --cases all --seeds 1
+
 # Run Group A (2D Plane Frames - 8 cases) with Gemini 3.8 Flash:
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_A_2D
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_A_2D --seeds 5
 
 # Run Group B (3D Space Frames - 8 cases):
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_B_3D
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_B_3D --seeds 5
 
 # Run Group C (Advanced Dynamic, Vision & CAE Interop - 8 cases):
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_C_Advanced
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases Group_C_Advanced --seeds 5
 
 # Run all 24 cases (Full Neuro-Symbolic Agent vs. Ablated No-Reflection Agent):
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all --seeds 5
+python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all --seeds 5
 
-# Run with local and cloud Ollama models:
-python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases all
-python "research_paper/benchmarks/run_benchmarks.py" --model gpt-oss:120b-cloud --cases all
-python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-ultra:cloud --cases all
+# Run with local and cloud models:
+python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases all --seeds 5
+python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-super:cloud --cases all --seeds 5
+python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --cases all --seeds 5
 ```
 
 ### 4. Generate Summary Tables & Publication Figures
