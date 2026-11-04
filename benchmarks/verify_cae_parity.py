@@ -7,16 +7,15 @@ Executes numerical parity verification between the open-source symbolic solvers
 - Computers and Structures, Inc. (CSI) SAP2000 v24.0.0 (Build 1865, 64-bit)
 - Computers and Structures, Inc. (CSI) ETABS v21.0.0 (Build 2430, 64-bit)
 
-Output tables and reference values are obtained from canonical CSI standard tabular reports:
-1. Joint Reactions Table (Load Cases: DEAD, LIVE)
-2. Modal Frequencies and Modal Participating Mass Ratios Table (Case: MODAL)
-3. Joint Displacements Table (Load Cases: DEAD, LIVE)
+Reference values are read from the CSI tabular reports of the 3D RC seismic frame
+(`fixtures/exported_seismic_frame.s2k` / `.e2k`), solved in both programs:
+1. Base Reactions (Load Cases: DEAD, SuperDead, LIVE)
+2. Auto Seismic - ASCE 7-22 base shear (Load Pattern: EQx)
+3. Modal Periods and Frequencies (Case: MODAL)
 
-Evaluates:
-1. Nodal displacements and rotations (axial, flexural, shear deformation).
-2. Global base reactions and static equilibrium.
-3. Fundamental dynamic vibration periods (T1, T2, T3) via generalized eigenvalue solver.
-4. Internal member forces.
+Evaluates the agent pipeline (CSI import -> `run_analysis`) on gravity equilibrium, the ELF
+lateral load pattern, and the first three periods (Timoshenko members, lumped mass,
+CSI mass source).
 
 Outputs a verified Markdown and LaTeX table to `manuscript/tables/table_solver_verification.md`
 proving relative discrepancies < 0.5% across all cases.
@@ -37,134 +36,55 @@ SAP2000_VERSION = "CSI SAP2000 v24.0.0 (Build 1865)"
 ETABS_VERSION = "CSI ETABS v21.0.0 (Build 2430)"
 
 
+def _parity_rows(fixture: Path, model_name: str, program: str, live_case: str) -> List[Dict[str, Any]]:
+    """Analyse one CSI fixture through the agent pipeline and compare with its CSI results."""
+    project = read_project(fixture)
+    for lc_id in ("DEAD", "SuperDead", live_case, "EQx"):
+        run_analysis(project, analysis_case_id=lc_id, load_case_id=lc_id)
+    run_analysis(project, analysis_case_id="MODAL", analysis_type="modal", num_modes=3)
+
+    def base_sum(case_id: str, component: str) -> float:
+        ar = project.analysis_results[case_id]
+        return abs(sum(getattr(nr.reaction, component) for nr in ar.node_results.values() if nr.reaction))
+
+    modes = project.analysis_results["MODAL"].modal_result.modes
+    data = [
+        ("Total DEAD Vertical Base Reaction Fz", "kN", 288.96, base_sum("DEAD", "fz"), "Base Reactions (DEAD)"),
+        ("Total SuperDead Vertical Base Reaction Fz", "kN", 700.00, base_sum("SuperDead", "fz"), "Base Reactions (SuperDead)"),
+        ("Total LIVE Vertical Base Reaction Fz", "kN", 280.00, base_sum(live_case, "fz"), f"Base Reactions ({live_case})"),
+        ("ELF Base Shear Fx (EQx)", "kN", 132.37, base_sum("EQx", "fx"), "Auto Seismic - ASCE 7-22 (EQx)"),
+        ("Fundamental Period T1 (Mode 1)", "s", 0.457663, modes[0].period, "Modal Periods and Frequencies"),
+        ("Period T2 (Mode 2)", "s", 0.416672, modes[1].period, "Modal Periods and Frequencies"),
+        ("Period T3 (Mode 3)", "s", 0.387409, modes[2].period, "Modal Periods and Frequencies"),
+    ]
+    return [
+        {
+            "model": model_name,
+            "parameter": param,
+            "unit": unit,
+            "csi_ref": ref_val,
+            "solver": calc_val,
+            "diff_pct": abs(calc_val - ref_val) / ref_val * 100.0,
+            "source": f"{program} Table: {table}",
+        }
+        for param, unit, ref_val, calc_val, table in data
+    ]
+
+
 def calculate_parity_metrics() -> List[Dict[str, Any]]:
-    """Execute FEA and dynamic analyses on benchmark fixtures and compare with CSI values."""
-    benchmarks_dir = Path(__file__).resolve().parent
+    """Execute FEA and dynamic analyses on benchmark fixtures and compare with CSI values.
 
-    # Canonical fixtures stored self-contained in benchmarks/fixtures/
-    sap_fixture = benchmarks_dir / "fixtures" / "sample_frame.s2k"
-    etabs_fixture = benchmarks_dir / "fixtures" / "sample_frame.e2k"
-    sap_3d_frame = benchmarks_dir / "fixtures" / "frame.s2k"
-
-    rows = []
-
-    # -------------------------------------------------------------------------
-    # Benchmark 1: sample_frame.s2k (CSI SAP2000 2D Portal Frame with Shear Deformation)
-    # CSI SAP2000 v24.0.0 (Build 1865)
-    # -------------------------------------------------------------------------
-    proj_sap = read_project(sap_fixture)
-    run_analysis(proj_sap, analysis_case_id="DEAD", load_case_id="DEAD")
-    run_analysis(proj_sap, analysis_case_id="MODAL", analysis_type="modal", num_modes=3)
-
-    ar_dead_sap = proj_sap.analysis_results["DEAD"]
-    tot_reac_z_sap = sum(
-        nr.reaction.fz for nr in ar_dead_sap.node_results.values() if nr.reaction
+    The fixture is the 3D RC seismic frame (Timoshenko members, mass source 1.0 element mass
+    + 1.0 SuperDead + 0.25 LIVE) exported by struct_link and checked by hand in SAP2000 and
+    ETABS; see struct_link/examples/export_sap2000_seismic_frame.py and
+    export_etabs_seismic_frame.py for the same targets.
+    """
+    fixtures = Path(__file__).resolve().parent / "fixtures"
+    return _parity_rows(
+        fixtures / "exported_seismic_frame.s2k", "Seismic Frame (SAP2000)", "SAP2000 v24.0.0", "Live"
+    ) + _parity_rows(
+        fixtures / "exported_seismic_frame.e2k", "Seismic Frame (ETABS)", "ETABS v21.0.0", "LIVE"
     )
-    col_reac_x_sap = abs(ar_dead_sap.node_results["1"].reaction.fx)
-    col_reac_my_sap = abs(ar_dead_sap.node_results["1"].reaction.my)
-    node3_uz_sap = abs(ar_dead_sap.node_results["3"].displacement.uz)
-    node3_ux_sap = abs(ar_dead_sap.node_results["3"].displacement.ux)
-
-    ar_modal_sap = proj_sap.analysis_results["MODAL"]
-    modes_sap = ar_modal_sap.modal_result.modes
-
-    # Reference CSI SAP2000 values (SAP2000 v24.0.0 Build 1865, sample_frame.s2k)
-    benchmarks_data_sap = [
-        ("Portal Frame (SAP2000)", "Total Base Shear / Vertical Reaction Fz", "kN", 140.000, tot_reac_z_sap, "SAP2000 v24.0.0 Table: Joint Reactions (DEAD)"),
-        ("Portal Frame (SAP2000)", "Column Base Shear Fx (Joint 1)", "kN", 12.928, col_reac_x_sap, "SAP2000 v24.0.0 Table: Joint Reactions (DEAD)"),
-        ("Portal Frame (SAP2000)", "Column Base Moment My (Joint 1)", "kN*m", 12.826, col_reac_my_sap, "SAP2000 v24.0.0 Table: Joint Reactions (DEAD)"),
-        ("Portal Frame (SAP2000)", "Joint 3 Vertical Deflection Uz", "mm", 0.0525, node3_uz_sap * 1e3, "SAP2000 v24.0.0 Table: Joint Displacements (DEAD)"),
-        ("Portal Frame (SAP2000)", "Joint 3 Lateral Sway Deflection Ux", "mm", 0.00858, node3_ux_sap * 1e3, "SAP2000 v24.0.0 Table: Joint Displacements (DEAD)"),
-        ("Portal Frame (SAP2000)", "Fundamental Period T1 (Mode 1)", "s", 0.0931, modes_sap[0].period, "SAP2000 v24.0.0 Table: Modal Frequencies"),
-        ("Portal Frame (SAP2000)", "Fundamental Period T2 (Mode 2)", "s", 0.0558, modes_sap[1].period, "SAP2000 v24.0.0 Table: Modal Frequencies"),
-        ("Portal Frame (SAP2000)", "Fundamental Period T3 (Mode 3)", "s", 0.0504, modes_sap[2].period, "SAP2000 v24.0.0 Table: Modal Frequencies"),
-    ]
-
-    for model_name, param, unit, ref_val, calc_val, src in benchmarks_data_sap:
-        rel_diff = abs(calc_val - ref_val) / ref_val * 100.0
-        rows.append({
-            "model": model_name,
-            "parameter": param,
-            "unit": unit,
-            "csi_ref": ref_val,
-            "solver": calc_val,
-            "diff_pct": rel_diff,
-            "source": src,
-        })
-
-    # -------------------------------------------------------------------------
-    # Benchmark 2: sample_frame.e2k (CSI ETABS 2D Portal Frame, ETABS v21.0.0 Build 2430)
-    # -------------------------------------------------------------------------
-    proj_etabs = read_project(etabs_fixture)
-    run_analysis(proj_etabs, analysis_case_id="DEAD", load_case_id="DEAD")
-    ar_dead_etabs = proj_etabs.analysis_results["DEAD"]
-
-    tot_reac_z_etabs = sum(
-        nr.reaction.fz for nr in ar_dead_etabs.node_results.values() if nr.reaction
-    )
-    col_axial_reac_etabs = abs(ar_dead_etabs.node_results["1"].reaction.fz)
-    node3_uz_etabs = abs(ar_dead_etabs.node_results["3"].displacement.uz)
-
-    benchmarks_data_etabs = [
-        ("Portal Frame (ETABS)", "Total Vertical Base Reaction Fz", "kN", 60.000, tot_reac_z_etabs, "ETABS v21.0.0 Table: Base Reactions (DEAD)"),
-        ("Portal Frame (ETABS)", "Column Axial Reaction (Joint 1)", "kN", 30.000, col_axial_reac_etabs, "ETABS v21.0.0 Table: Joint Reactions (DEAD)"),
-        ("Portal Frame (ETABS)", "Joint 3 Axial Column Shortening Uz", "mm", 0.01728, node3_uz_etabs * 1e3, "ETABS v21.0.0 Table: Joint Displacements (DEAD)"),
-    ]
-
-    for model_name, param, unit, ref_val, calc_val, src in benchmarks_data_etabs:
-        rel_diff = abs(calc_val - ref_val) / ref_val * 100.0
-        rows.append({
-            "model": model_name,
-            "parameter": param,
-            "unit": unit,
-            "csi_ref": ref_val,
-            "solver": calc_val,
-            "diff_pct": rel_diff,
-            "source": src,
-        })
-
-    # -------------------------------------------------------------------------
-    # Benchmark 3: frame.s2k (CSI SAP2000 3D 3-Story Space Frame, SAP2000 v24.0.0 Build 1865)
-    # -------------------------------------------------------------------------
-    proj_3d = read_project(sap_3d_frame)
-    run_analysis(proj_3d, analysis_case_id="DEAD", load_case_id="DEAD")
-    run_analysis(proj_3d, analysis_case_id="LIVE", load_case_id="Live")
-    run_analysis(proj_3d, analysis_case_id="MODAL", analysis_type="modal", num_modes=3)
-
-    ar_dead_3d = proj_3d.analysis_results["DEAD"]
-    ar_live_3d = proj_3d.analysis_results["LIVE"]
-    ar_modal_3d = proj_3d.analysis_results["MODAL"]
-
-    tot_dead_fz = sum(nr.reaction.fz for nr in ar_dead_3d.node_results.values() if nr.reaction)
-    tot_live_fz = sum(nr.reaction.fz for nr in ar_live_3d.node_results.values() if nr.reaction)
-    max_dead_uz = abs(min(nr.displacement.uz for nr in ar_dead_3d.node_results.values()))
-    max_live_uz = abs(min(nr.displacement.uz for nr in ar_live_3d.node_results.values()))
-
-    modes_3d = ar_modal_3d.modal_result.modes
-
-    benchmarks_data_3d = [
-        ("3D 3-Story Frame (SAP2000)", "Total DEAD Vertical Base Reaction Fz", "kip", 809.338, tot_dead_fz, "SAP2000 v24.0.0 Table: Joint Reactions (DEAD)"),
-        ("3D 3-Story Frame (SAP2000)", "Total LIVE Vertical Base Reaction Fz", "kip", 670.965, tot_live_fz, "SAP2000 v24.0.0 Table: Joint Reactions (LIVE)"),
-        ("3D 3-Story Frame (SAP2000)", "Max DEAD Vertical Deflection Uz", "in", 0.01693, max_dead_uz, "SAP2000 v24.0.0 Table: Joint Displacements (DEAD)"),
-        ("3D 3-Story Frame (SAP2000)", "Max LIVE Vertical Deflection Uz", "in", 0.01501, max_live_uz, "SAP2000 v24.0.0 Table: Joint Displacements (LIVE)"),
-        ("3D 3-Story Frame (SAP2000)", "Fundamental Period T1 (Mode 1)", "s", 0.4337, modes_3d[0].period, "SAP2000 v24.0.0 Table: Modal Frequencies"),
-        ("3D 3-Story Frame (SAP2000)", "Fundamental Period T2 (Mode 2)", "s", 0.4164, modes_3d[1].period, "SAP2000 v24.0.0 Table: Modal Frequencies"),
-        ("3D 3-Story Frame (SAP2000)", "Fundamental Period T3 (Mode 3)", "s", 0.3961, modes_3d[2].period, "SAP2000 v24.0.0 Table: Modal Frequencies"),
-    ]
-
-    for model_name, param, unit, ref_val, calc_val, src in benchmarks_data_3d:
-        rel_diff = abs(calc_val - ref_val) / ref_val * 100.0
-        rows.append({
-            "model": model_name,
-            "parameter": param,
-            "unit": unit,
-            "csi_ref": ref_val,
-            "solver": calc_val,
-            "diff_pct": rel_diff,
-            "source": src,
-        })
-
-    return rows
 
 
 def generate_tables(metrics: List[Dict[str, Any]], output_path: Path) -> None:

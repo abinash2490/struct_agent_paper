@@ -1,59 +1,82 @@
 """
 Autonomous Structural Engineering Benchmark Execution Harness
-==============================================================
+=============================================================
 
-Automates batch testing of Large Language Models against the 24-case structural
-benchmark suite across five experimental configurations (full_agent, ablated, direct_llm, code_gen, heuristic).
-Records quantitative metrics (TCR, CCR, CHR, convergence iterations, material
-economy ratio, runtime) to unique timestamped JSON files.
+Runs the benchmark suite (``benchmark_cases.json``, schema in ``case_schema.py``) under five
+configurations and records per-run metrics to timestamped JSON files in ``results/``:
 
-Usage Examples
---------------
-# Run all 24 cases with Google Gemini 3.8 Flash (Full Agent vs. Ablated):
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --cases all --seeds 5
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all --seeds 5
+* ``full_agent``  — neuro-symbolic agent with tools and closed-loop reflection
+* ``ablated``     — same agent without ``modify_project``, and without re-creating or resizing the model after design
+* ``direct_llm``  — single-shot LLM answer (sections + claimed values), no tools
+* ``code_gen``    — single-shot LLM-written Python script (numpy/scipy), executed in isolation
+* ``heuristic``   — deterministic rule-of-thumb sizing with sqrt(DCR) resizing (no LLM)
 
-# Run Direct Zero-Shot LLM baseline (no tools) to measure Calculation Hallucination Rate (CHR):
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config direct_llm --cases all --seeds 1
+Every configuration is scored by the deterministic oracle on the case's canonical model:
+code compliance (governing DCR <= 1.0 within the stated design space), calculation hallucination
+rate on the metrics the prompt asks for, claim completeness, material economy against the
+minimum-volume baseline, and — for agents — task completion, prompt-to-schema fidelity,
+deliverable files, reflection convergence, and robustness-probe behavior.
 
-# Run Group A (2D cases) with local/cloud Ollama models:
-python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases Group_A_2D --seeds 5
-python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-super:cloud --cases Group_A_2D --seeds 5
-python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --cases Group_A_2D --seeds 5
+Usage
+-----
+python research_paper/benchmarks/run_benchmarks.py --model gemini-3.8-flash --cases all --seeds 5
+python research_paper/benchmarks/run_benchmarks.py --model gemini-3.8-flash --config ablated --cases all --seeds 5
+python research_paper/benchmarks/run_benchmarks.py --model qwen3.5:9b --config direct_llm --cases A_2D
+python research_paper/benchmarks/run_benchmarks.py --config heuristic --cases all
 """
 
+from __future__ import annotations
+
 import argparse
-import inspect
 import json
 import math
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
+from statistics import mean, pstdev
 from typing import Any, Dict, List, Optional, Tuple
 
-# Ensure Windows terminal stdout handles unicode cleanly
 if hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
-from struct_agent import (
+BENCHMARKS_DIR = Path(__file__).resolve().parent
+REPO_ROOT = BENCHMARKS_DIR.parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from research_paper.benchmarks.benchmark_utils import (  # noqa: E402
+    DesignCheckTracker,
+    calculate_concrete_volume,
+    evaluate_prompt_to_schema_fidelity,
+    gravity_load_totals,
+    lateral_load_totals,
+    parse_numerical_claims_from_text,
+)
+from research_paper.benchmarks.case_schema import METRICS, BenchmarkCase, SectionPair, load_cases  # noqa: E402
+from research_paper.benchmarks.oracle_verifier import OracleResult, OracleVerifier  # noqa: E402
+from struct_agent import (  # noqa: E402
     AgentRunner,
     CompleteEvent,
     ErrorEvent,
     StateUpdateEvent,
-    ThoughtEvent,
     ToolCallEvent,
     ToolResultEvent,
 )
+from struct_agent.vision.encoding import build_multimodal_message  # noqa: E402
+from struct_core import conversion_factor  # noqa: E402
 
-# Tools that are purely diagnostic/validation or conditional on overstress;
-# all other tools listed in `expected_tools` are strictly required for TCR.
+# Diagnostic tools and conditional resizing are not required for task completion.
 NON_MANDATORY_EXPECTED_TOOLS = {
     "modify_project",
     "validate_model",
@@ -63,1544 +86,1126 @@ NON_MANDATORY_EXPECTED_TOOLS = {
     "inspect_design_results",
     "inspect_detailing_results",
 }
-
-# Ensure benchmarks package can be imported
-benchmarks_dir = Path(__file__).resolve().parent
-repo_root_candidate = benchmarks_dir.parents[1]
-if str(repo_root_candidate) not in sys.path:
-    sys.path.insert(0, str(repo_root_candidate))
-
-try:
-    from research_paper.benchmarks.oracle_verifier import OracleVerifier, ORACLE_CASES_CATALOG
-    from research_paper.benchmarks.benchmark_utils import (
-        calculate_concrete_volume,
-        evaluate_prompt_to_schema_fidelity,
-        load_benchmark_cases,
-        parse_numerical_claims_from_text,
-    )
-except ImportError:
-    from oracle_verifier import OracleVerifier, ORACLE_CASES_CATALOG
-    from benchmark_utils import (
-        calculate_concrete_volume,
-        evaluate_prompt_to_schema_fidelity,
-        load_benchmark_cases,
-        parse_numerical_claims_from_text,
-    )
-
-from struct_agent.tools.analysis import run_analysis
-from struct_agent.tools.design import run_design
-
+MODEL_CREATION_TOOLS = {
+    "create_frame_model",
+    "create_model_from_plan_draft",
+    "create_project",
+    "import_from_sap2000",
+    "import_from_etabs",
+}
+# AgentRunner settings per agent configuration; the ablation removes the resizing tool (and its prompt
+# stage) and re-creating or resizing the model after a design check. Also used to replay a run (audit_results).
+RUNNER_SETTINGS = {
+    "full_agent": {},
+    "ablated": {"allow_resizing": False, "allow_model_recreation": False},
+}
+METRIC_DESCRIPTIONS = {
+    "total_weight": "total dead load W = member self-weight + superimposed dead load",
+    "base_shear": "X-direction base shear Vb",
+    "fundamental_period": "fundamental period T1 in seconds",
+    "period_t2": "second-mode period T2 in seconds",
+    "period_t3": "third-mode period T3 in seconds",
+    "modal_mass_ratio": "cumulative X-direction modal mass participation ratio of the first three modes (0-1)",
+    "peak_roof_displacement": "peak roof displacement relative to the base",
+    "max_base_reaction": "maximum vertical support reaction under 1.2D + 1.6L",
+    "governing_dcr": "governing demand-capacity ratio over all checks: beams, columns, beam-column joints, "
+                     "and story drift and stability",
+}
+BEHAVIOR_PATTERNS = {
+    "report_infeasible": r"infeasib|not (?:be )?possible|impossible|"
+                         r"(?:cannot|can ?not|can't|could not|couldn't|unable to) (?:be )?(?:satisf|achiev|meet|design|compl)|"
+                         r"no (?:feasible|adequate|compliant) (?:design|section)|exceed(?:s|ed)? the (?:limit|cap)|"
+                         # "no column-beam combination satisfying the limits can achieve ACI 318-25 compliance", and
+                         # "no section within the 0.30 m cap is adequate" (one sentence: a decimal point does not end it)
+                         r"\bno (?:[^.\n]|\.(?=\d)){0,60}?(?:combination|section|size|design|solution)"
+                         r"(?:[^.\n]|\.(?=\d)){0,80}?"
+                         r"\b(?:(?:can|could|will|would) (?:achieve|satisfy|meet|comply|work)|"
+                         # minimax direct D02: 'No reinforcement-detailed design satisfying DCR <= 1.0 exists'
+                         r"(?:is|are) (?:adequate|sufficient|feasible|compliant)|exists?)|"
+                         # gemma code_gen D02: 'The demand exceeds capacity for the given architectural constraints'
+                         r"\bdemands? exceeds? (?:the )?capacity|"
+                         r"insufficient|inadequate|not adequate|undersized|\bfail(?:s|ed|ure)?\b|"
+                         r"prevents? (?:[^.]|\.(?=\d)){0,60}(?:achiev|satisf|meet)",
+    "declare_assumption": r"assum|not (?:specified|given|provided|stated)|missing|clarif|"
+                          # a request for the input: "please specify", "could you provide"
+                          r"please (?:provide|confirm|specify|give|tell|share|let me know)|"
+                          r"(?:could|can|would) you (?:please )?(?:provide|confirm|specify|give|tell|share|let me know)",
+    "flag_contradiction": r"inconsisten|contradict|conflict|mismatch|discrepan|does not (?:match|add up)|"
+                          r"(?:3|three)\s*[x×]\s*5(?:\.0)?\s*m?\s*=\s*15|"
+                          # D04: the stated 18 m and the bays' 15 m named in one sentence ("the prompt requested
+                          # 18.0 m, but ... 15.0 m total"); a restatement of the prompt never names 15 m
+                          r"\b18(?:\.0+)?\s*m\b(?:(?!\.\s)[^\n]){0,150}?\b15(?:\.0+)?\s*m\b|"
+                          r"\b15(?:\.0+)?\s*m\b(?:(?!\.\s)[^\n]){0,150}?\b18(?:\.0+)?\s*m\b",
+}
 
 
 def sanitize_filename(name: str) -> str:
-    """Sanitize model name for clean file naming."""
     return re.sub(r"[^a-zA-Z0-9_\-\.]", "_", name)
 
 
-# Canonical volume calculation and case loading are imported from benchmark_utils.py.
+def _length_unit(case: BenchmarkCase) -> str:
+    return case.spec.units.split(",")[1].strip()
 
 
-
-# Single canonical goal-oriented prompts are used across all 4 configurations to eliminate prompt confounds.
-
-
-def inject_cae_fixtures_if_needed(case: Dict[str, Any], prompt: str, repo_root: Path) -> str:
-    """
-    Inject raw text of .s2k or .e2k fixture files into user prompt on C03/C04
-    for direct_llm and code_gen baselines, guaranteeing strict informational parity.
-    """
-    case_id = case.get("id", "")
-    if "C03" in case_id or "C04" in case_id:
-        file_path_str = case.get("file_path")
-        if file_path_str:
-            target_path = repo_root / file_path_str
-            if not target_path.exists():
-                target_path = Path(__file__).resolve().parent / file_path_str
-            if target_path.exists():
-                content = target_path.read_text(encoding="utf-8", errors="replace")
-                return (
-                    f"{prompt}\n\n"
-                    f"--- Raw CAE Fixture File Content ({target_path.name}) ---\n"
-                    f"{content}\n"
-                    f"--- End of CAE Fixture File Content ---"
-                )
-    return prompt
+def _force_unit(case: BenchmarkCase) -> str:
+    return case.spec.units.split(",")[0].strip()
 
 
-# Prompt-to-Schema Fidelity Rate (PSFR) evaluation logic is canonically defined
-# in benchmark_utils.py (evaluate_prompt_to_schema_fidelity) to ensure identical
-# verification criteria across harness runners and unit test suites.
+def ccr_eligible(case: BenchmarkCase) -> bool:
+    """Design cases with a feasible, fully specified problem count toward the code-compliance rate."""
+    return case.design_required and case.taxonomy.probe in (None, "units")
 
 
-def run_direct_llm_baseline(
-    case: Dict[str, Any],
-    model: str,
-    api_base: str,
-    api_key: str,
-    repo_root: Path,
-    timeout: float = 180.0,
-    temperature: float = 0.0,
-    seed: Optional[int] = None,
-    verbose: bool = True,
-) -> Dict[str, Any]:
-    """
-    Execute Baseline 1 (Direct Zero-Shot LLM without symbolic tools) using
-    Oracle Verification to evaluate Calculation Hallucination Rate (CHR) and
-    true Code Compliance Rate (CCR) without equifinality or self-weight bias.
-    """
-    case_id = case["id"]
-    prompt = case["prompt"]
-    requires_design = bool(case.get("design_required", False))
-
-    # Inject CAE fixture text for C03/C04 to guarantee informational parity
-    prompt = inject_cae_fixtures_if_needed(case, prompt, repo_root)
-
-    system_msg = (
-        "You are an expert structural engineer performing preliminary structural sizing and calculations. "
-        "Based on the structural geometry, loading, and constraints in the user prompt, propose candidate member "
-        "cross-section dimensions (columns and beams in meters) and state your calculated physical mechanics values. "
-        "You must output ONLY a valid JSON object with the following keys:\n"
-        '{\n'
-        '  "col_b_m": <float, column cross-section width in meters>,\n'
-        '  "col_h_m": <float, column cross-section depth in meters>,\n'
-        '  "beam_b_m": <float, beam cross-section width in meters>,\n'
-        '  "beam_h_m": <float, beam cross-section depth in meters>,\n'
-        '  "claimed_total_weight_kN": <float, total structural dead load + self-weight in kN>,\n'
-        '  "claimed_base_shear_kN": <float, total lateral base shear in kN (0.0 if pure gravity)>,\n'
-        '  "claimed_fundamental_period_s": <float, fundamental natural vibration period T1 in seconds (0.0 if not dynamic)>,\n'
-        '  "claimed_period_t2_s": <float, second mode period T2 in seconds (0.0 if not modal)>,\n'
-        '  "claimed_period_t3_s": <float, third mode period T3 in seconds (0.0 if not modal)>,\n'
-        '  "claimed_modal_mass_ratio": <float, modal mass participation ratio (0.0 if not modal)>,\n'
-        '  "claimed_peak_displacement_m": <float, peak roof lateral displacement in meters (0.0 if not time-history)>,\n'
-        '  "claimed_governing_dcr": <float, governing ACI 318 demand-capacity ratio DCR (1.0 if not design case)>\n'
-        '}\n'
-        "Do not include markdown code fences, comments, or extra text. Output only the raw JSON string."
-    )
-
-    t_start = time.perf_counter()
-    url = f"{api_base.rstrip('/')}/chat/completions"
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": temperature,
-    }
-    if seed is not None:
-        payload["seed"] = seed
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key or 'ollama'}",
-    }
-
-    raw_reply = ""
-    error_messages = []
-    parsed: Dict[str, Any] = {}
-
-    try:
-        req = urllib.request.Request(
-            url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            resp_data = json.loads(resp.read().decode("utf-8"))
-            raw_reply = (
-                resp_data.get("choices", [{}])[0].get("message", {}).get("content", "") or ""
-            )
-            match = re.search(r"\{.*\}", raw_reply, re.DOTALL)
-            if match:
-                parsed = json.loads(match.group(0))
-    except Exception as exc:
-        error_messages.append(str(exc))
-        if verbose:
-            print(f"  [Direct LLM Error]: {exc}")
-
-    t_elapsed = round(time.perf_counter() - t_start, 2)
-
-    # Deterministic Oracle Verification
-    verifier = OracleVerifier(repo_root=repo_root)
-    col_b = parsed.get("col_b_m") or parsed.get("col_b")
-    col_h = parsed.get("col_h_m") or parsed.get("col_h")
-    beam_b = parsed.get("beam_b_m") or parsed.get("beam_b")
-    beam_h = parsed.get("beam_h_m") or parsed.get("beam_h")
-
-    oracle_res = verifier.evaluate(
-        case_id=case_id,
-        col_b=col_b,
-        col_h=col_h,
-        beam_b=beam_b,
-        beam_h=beam_h,
-        claims=parsed,
-    )
-
-    chr_pct = oracle_res.calculation_hallucination_rate_pct
-    code_compliant = oracle_res.code_compliant
-    concrete_vol = oracle_res.concrete_volume_m3
-    econ_ratio = oracle_res.material_economy_ratio
-    gov_dcr = oracle_res.governing_dcr
-    expected_metrics = getattr(oracle_res, "expected_metrics", oracle_res.active_metrics) or oracle_res.active_metrics
-    num_claims = max(len(oracle_res.claims_made), 1)
-    hallucinated_claims = len(oracle_res.hallucinated_metrics)
-
-    if oracle_res.error_message:
-        error_messages.append(f"OracleVerifier: {oracle_res.error_message}")
-
-    print(
-        f"\n--> Result: [DIRECT LLM BASELINE] | Hallucinations: {hallucinated_claims}/{num_claims} "
-        f"(CHR: {chr_pct}%) | Oracle DCR: {gov_dcr} | Compliant: {code_compliant} | Time: {t_elapsed}s"
-    )
-
-    gov_member_id = oracle_res.governing_member_type
-    gov_limit_state = oracle_res.governing_limit_state
-
-    success = bool(oracle_res.code_compliant if requires_design else oracle_res.valid_sections)
-    failure_mode = None
-    if not success:
-        if not oracle_res.valid_sections:
-            failure_mode = "model_construction"
-        elif requires_design and not oracle_res.code_compliant:
-            failure_mode = "dcr_non_convergence"
-        else:
-            failure_mode = "runtime_error"
-
-    return {
-        "case_id": case_id,
-        "name": case["name"],
-        "group": case.get("group", ""),
-        "model": model,
-        "configuration": "direct_llm",
-        "temperature": temperature,
-        "seed": seed,
-        "design_required": requires_design,
-        "success": success,
-        "code_compliant": code_compliant,
-        "governing_member_id": gov_member_id,
-        "governing_limit_state": gov_limit_state,
-        "dcr_flexure": None,
-        "dcr_shear": None,
-        "dcr_pm": None,
-        "final_stage": "UNVERIFIED_TEXT_ONLY",
-        "stages_visited": [],
-        "wall_clock_time_sec": t_elapsed,
-        "turns_used": 1,
-        "tools_called": [],
-        "missing_expected_tools": case.get("expected_tools", []),
-        "tool_failures_count": 0,
-        "tool_failures": [],
-        "initial_dcr": gov_dcr,
-        "final_dcr": gov_dcr,
-        "dcr_history": [gov_dcr] if gov_dcr is not None else [],
-        "iterations_to_converge": None,
-        "nodes_count": 0,
-        "elements_count": 0,
-        "concrete_volume_m3": concrete_vol,
-        "baseline_concrete_volume_m3": case.get("baseline_concrete_volume_m3"),
-        "material_economy_ratio": econ_ratio,
-        "numerical_claims_count": len(oracle_res.claims_made),
-        "claims_made": oracle_res.claims_made,
-        "claims_made_count": len(oracle_res.claims_made),
-        "omitted_metrics": oracle_res.omitted_metrics,
-        "omitted_metrics_count": len(oracle_res.omitted_metrics),
-        "expected_oracle_metrics": expected_metrics,
-        "claim_completeness_pct": round(
-            (len(set(oracle_res.claims_made) & set(expected_metrics)) / max(len(expected_metrics), 1)) * 100.0,
-            1,
-        ),
-        "hallucinated_claims_count": hallucinated_claims,
-        "calculation_hallucination_rate_pct": chr_pct,
-        "active_oracle_metrics": oracle_res.active_metrics,
-        "hallucinated_oracle_metrics": oracle_res.hallucinated_metrics,
-        "oracle_metric_errors": oracle_res.metric_errors,
-        "prompt_to_schema_fidelity_passed": False,
-        "failure_mode": failure_mode,
-        "error_messages": error_messages,
-        "final_message_snippet": (raw_reply[:200] + "...") if len(raw_reply) > 200 else raw_reply,
-    }
-
-
-def run_code_gen_baseline(
-    case: Dict[str, Any],
-    model: str,
-    api_base: str,
-    api_key: str,
-    repo_root: Path,
-    timeout: float = 180.0,
-    temperature: float = 0.0,
-    seed: Optional[int] = None,
-    verbose: bool = True,
-) -> Dict[str, Any]:
-    """
-    Execute Baseline 2 (Code-Generation LLM) using Oracle Verification
-    to evaluate code executability, syntax stability, Calculation Hallucination Rate (CHR),
-    and true Code Compliance Rate (CCR).
-    """
-    import subprocess
-    import tempfile
-
-    case_id = case["id"]
-    prompt = case["prompt"]
-    requires_design = bool(case.get("design_required", False))
-
-    # Inject CAE fixture text for C03/C04 to guarantee informational parity
-    prompt = inject_cae_fixtures_if_needed(case, prompt, repo_root)
-
-    system_msg = (
-        "You are an expert structural engineer and scientific Python programmer. "
-        "Write a standalone Python script using standard libraries (numpy, scipy) to solve the user's "
-        "structural engineering problem directly from first principles. "
-        "Your script must size the columns and beams, compute the structural metrics, and print a single valid JSON string to stdout with keys:\n"
-        '{\n'
-        '  "col_b_m": <float, column width in meters>,\n'
-        '  "col_h_m": <float, column depth in meters>,\n'
-        '  "beam_b_m": <float, beam width in meters>,\n'
-        '  "beam_h_m": <float, beam depth in meters>,\n'
-        '  "claimed_total_weight_kN": <float, total structural dead load + self-weight in kN>,\n'
-        '  "claimed_base_shear_kN": <float, total lateral base shear in kN (0.0 if pure gravity)>,\n'
-        '  "claimed_fundamental_period_s": <float, fundamental natural vibration period in seconds (0.0 if not dynamic)>,\n'
-        '  "claimed_period_t2_s": <float, second mode period T2 in seconds (0.0 if not modal)>,\n'
-        '  "claimed_period_t3_s": <float, third mode period T3 in seconds (0.0 if not modal)>,\n'
-        '  "claimed_modal_mass_ratio": <float, modal mass participation ratio (0.0 if not modal)>,\n'
-        '  "claimed_peak_displacement_m": <float, peak roof lateral displacement in meters (0.0 if not time-history)>,\n'
-        '  "claimed_governing_dcr": <float, governing ACI 318 demand-capacity ratio DCR (1.0 if not design case)>\n'
-        '}\n'
-        "Output ONLY the python code inside ```python ... ``` fences."
-    )
-
-    t_start = time.perf_counter()
-    url = f"{api_base.rstrip('/')}/chat/completions"
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": temperature,
-    }
-    if seed is not None:
-        payload["seed"] = seed
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key or 'ollama'}",
-    }
-
-    raw_reply = ""
-    error_messages = []
-    parsed: Dict[str, Any] = {}
-    code_execution_ok = False
-
-    try:
-        req = urllib.request.Request(
-            url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            resp_data = json.loads(resp.read().decode("utf-8"))
-            raw_reply = (
-                resp_data.get("choices", [{}])[0].get("message", {}).get("content", "") or ""
-            )
-
-        code_match = re.search(r"```(?:python)?(.*?)```", raw_reply, re.DOTALL)
-        script_code = code_match.group(1).strip() if code_match else raw_reply.strip()
-
-        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as tf:
-            tf.write(script_code)
-            temp_script = tf.name
-
-        try:
-            res = subprocess.run(
-                [sys.executable, temp_script],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if res.returncode == 0:
-                code_execution_ok = True
-                out_match = re.search(r"\{.*\}", res.stdout, re.DOTALL)
-                if out_match:
-                    parsed = json.loads(out_match.group(0))
-            else:
-                error_messages.append(f"Script runtime error: {res.stderr[:300]}")
-        finally:
-            if os.path.exists(temp_script):
-                try:
-                    os.unlink(temp_script)
-                except Exception:
-                    pass
-
-    except Exception as exc:
-        error_messages.append(str(exc))
-        if verbose:
-            print(f"  [Code-Gen Error]: {exc}")
-
-    t_elapsed = round(time.perf_counter() - t_start, 2)
-
-    # Oracle verification
-    verifier = OracleVerifier(repo_root=repo_root)
-    col_b = parsed.get("col_b_m") or parsed.get("col_b")
-    col_h = parsed.get("col_h_m") or parsed.get("col_h")
-    beam_b = parsed.get("beam_b_m") or parsed.get("beam_b")
-    beam_h = parsed.get("beam_h_m") or parsed.get("beam_h")
-
-    oracle_res = verifier.evaluate(
-        case_id=case_id,
-        col_b=col_b,
-        col_h=col_h,
-        beam_b=beam_b,
-        beam_h=beam_h,
-        claims=parsed,
-    )
-
-    expected_metrics = getattr(oracle_res, "expected_metrics", oracle_res.active_metrics) or oracle_res.active_metrics
-    if not code_execution_ok:
-        chr_pct = 100.0
-        code_compliant = False if requires_design else None
-        concrete_vol = 0.0
-        econ_ratio = None
-        gov_dcr = None
-        claims_made_list = list(expected_metrics)
-        num_claims = max(len(claims_made_list), 1)
-        hallucinated_claims = num_claims
-    else:
-        chr_pct = oracle_res.calculation_hallucination_rate_pct
-        code_compliant = oracle_res.code_compliant
-        concrete_vol = oracle_res.concrete_volume_m3
-        econ_ratio = oracle_res.material_economy_ratio
-        gov_dcr = oracle_res.governing_dcr
-        claims_made_list = oracle_res.claims_made
-        num_claims = max(len(claims_made_list), 1)
-        hallucinated_claims = len(oracle_res.hallucinated_metrics)
-
-    if oracle_res.error_message and code_execution_ok:
-        error_messages.append(f"OracleVerifier: {oracle_res.error_message}")
-
-    print(
-        f"\n--> Result: [CODE-GEN BASELINE] | Executed: {code_execution_ok} | "
-        f"Hallucinations: {hallucinated_claims}/{num_claims} (CHR: {chr_pct}%) | "
-        f"Oracle DCR: {gov_dcr} | Compliant: {code_compliant} | Time: {t_elapsed}s"
-    )
-
-    gov_member_id = oracle_res.governing_member_type
-    gov_limit_state = oracle_res.governing_limit_state
-
-    return {
-        "case_id": case_id,
-        "name": case["name"],
-        "group": case.get("group", ""),
-        "model": model,
-        "configuration": "code_gen",
-        "temperature": temperature,
-        "seed": seed,
-        "design_required": requires_design,
-        "success": bool(code_execution_ok and (oracle_res.code_compliant if requires_design else oracle_res.valid_sections)),
-        "code_compliant": code_compliant,
-        "governing_member_id": gov_member_id,
-        "governing_limit_state": gov_limit_state,
-        "dcr_flexure": None,
-        "dcr_shear": None,
-        "dcr_pm": None,
-        "final_stage": "PYTHON_SCRIPT_GENERATION",
-        "stages_visited": [],
-        "wall_clock_time_sec": t_elapsed,
-        "turns_used": 1,
-        "tools_called": [],
-        "missing_expected_tools": case.get("expected_tools", []),
-        "tool_failures_count": 0 if code_execution_ok else 1,
-        "tool_failures": error_messages,
-        "initial_dcr": gov_dcr,
-        "final_dcr": gov_dcr,
-        "dcr_history": [gov_dcr] if gov_dcr is not None else [],
-        "iterations_to_converge": None,
-        "nodes_count": 0,
-        "elements_count": 0,
-        "concrete_volume_m3": concrete_vol,
-        "baseline_concrete_volume_m3": case.get("baseline_concrete_volume_m3"),
-        "material_economy_ratio": econ_ratio,
-        "numerical_claims_count": len(claims_made_list),
-        "claims_made": claims_made_list,
-        "claims_made_count": len(claims_made_list),
-        "omitted_metrics": oracle_res.omitted_metrics if code_execution_ok else [],
-        "omitted_metrics_count": len(oracle_res.omitted_metrics) if code_execution_ok else 0,
-        "expected_oracle_metrics": expected_metrics,
-        "claim_completeness_pct": (
-            round(
-                (len(set(claims_made_list) & set(expected_metrics)) / max(len(expected_metrics), 1)) * 100.0,
-                1,
-            )
-            if code_execution_ok
-            else 0.0
-        ),
-        "hallucinated_claims_count": hallucinated_claims,
-        "calculation_hallucination_rate_pct": chr_pct,
-        "active_oracle_metrics": oracle_res.active_metrics,
-        "hallucinated_oracle_metrics": oracle_res.hallucinated_metrics if code_execution_ok else list(expected_metrics),
-        "oracle_metric_errors": oracle_res.metric_errors,
-        "prompt_to_schema_fidelity_passed": False,
-        "failure_mode": (
-            None
-            if (code_execution_ok and (oracle_res.code_compliant if requires_design else oracle_res.valid_sections))
-            else (
-                "model_construction"
-                if (not code_execution_ok or not oracle_res.valid_sections)
-                else ("dcr_non_convergence" if (requires_design and not oracle_res.code_compliant) else "runtime_error")
-            )
-        ),
-        "error_messages": error_messages,
-        "final_message_snippet": (raw_reply[:200] + "...") if len(raw_reply) > 200 else raw_reply,
-    }
-
-
-def run_heuristic_baseline(
-    case: Dict[str, Any],
-    repo_root: Path,
-    verbose: bool = True,
-) -> Dict[str, Any]:
-    """
-    Execute Baseline 0: Deterministic Engineering Heuristic (Non-LLM Floor).
-
-    Sizes structural elements via classical civil engineering heuristics:
-    - Columns: b = h = max(0.30, round(0.05 * H_total, 2)), rounded to nearest 0.05 m.
-    - Beams: b = 0.30 m, h = max(0.35, round(L / 12.0, 2)), rounded to nearest 0.05 m.
-
-    If overstressed (DCR > 1.0), iteratively resizes via the square-root DCR rule:
-    h_new = round(h_curr * sqrt(DCR), 2), b_new = round(b_curr * sqrt(DCR), 2).
-    """
-    t_start = time.perf_counter()
-    case_id = case["id"]
-    requires_design = case.get("design_required", False)
-
-    verifier = OracleVerifier(repo_root=repo_root)
-    catalog = ORACLE_CASES_CATALOG.get(case_id, {})
-
-    num_stories = catalog.get("num_stories", 1)
-    story_h = catalog.get("story_height", 3.5)
-    total_h = num_stories * story_h
-    bay_w = catalog.get("bay_width") or catalog.get("bay_width_x") or 6.0
-
-    # For non-design cases (e.g. eigenvalue dynamics A05/B04 or time-history C01/C02),
-    # use prompt/catalog specified section dimensions rather than sizing heuristics
-    is_cae = catalog.get("analysis") == "cae_interop"
-    if not requires_design or is_cae:
-        col_b, col_h = catalog.get("default_col", (0.40, 0.40))
-        beam_b, beam_h = catalog.get("default_beam", (0.30, 0.50))
-    else:
-        # Classical preliminary proportions for design cases
-        col_dim = max(0.30, round(round(0.05 * total_h, 2) * 20.0) / 20.0)
-        col_b, col_h = col_dim, col_dim
-        beam_b = 0.30
-        beam_h = max(0.35, round(round(bay_w / 12.0, 2) * 20.0) / 20.0)
-
-    dcr_history: List[float] = []
-    max_iters = 6 if requires_design else 1
-    oracle_res = None
-
-    for it in range(max_iters):
-        oracle_res = verifier.evaluate(
-            case_id=case_id,
-            col_b=col_b,
-            col_h=col_h,
-            beam_b=beam_b,
-            beam_h=beam_h,
-            claims={},
-        )
-        gov_dcr = oracle_res.governing_dcr
-        if gov_dcr is not None:
-            dcr_history.append(gov_dcr)
-
-        if not requires_design or (gov_dcr is not None and gov_dcr <= 1.0) or it == max_iters - 1:
-            break
-
-        # Scale sections by sqrt(DCR)
-        scale_fac = math.sqrt(max(gov_dcr, 1.05))
-        col_b = min(1.50, max(col_b + 0.05, round(round(col_b * scale_fac, 2) * 20.0) / 20.0))
-        col_h = min(1.50, max(col_h + 0.05, round(round(col_h * scale_fac, 2) * 20.0) / 20.0))
-        beam_b = min(1.00, max(beam_b + 0.05, round(round(beam_b * scale_fac, 2) * 20.0) / 20.0))
-        beam_h = min(1.50, max(beam_h + 0.05, round(round(beam_h * scale_fac, 2) * 20.0) / 20.0))
-
-    t_elapsed = round(time.perf_counter() - t_start, 2)
-    gov_dcr = oracle_res.governing_dcr
-    code_compliant = oracle_res.code_compliant
-    concrete_vol = oracle_res.concrete_volume_m3
-    econ_ratio = oracle_res.material_economy_ratio
-    expected_metrics = getattr(oracle_res, "expected_metrics", oracle_res.active_metrics) or oracle_res.active_metrics
-
-    iterations_to_converge = None
-    if requires_design and dcr_history:
-        initial_dcr = dcr_history[0]
-        if initial_dcr is not None and initial_dcr > 1.0:
-            iterations_to_converge = (len(dcr_history) - 1) if code_compliant else None
-        elif initial_dcr is not None and initial_dcr <= 1.0:
-            iterations_to_converge = 0
-
-    if is_cae:
-        success = None
-        failure_mode = "not_applicable"
-    else:
-        success = bool(code_compliant if requires_design else oracle_res.valid_sections)
-        failure_mode = None if success else ("dcr_non_convergence" if (requires_design and not code_compliant) else "heuristic_failure")
-
-    if verbose:
-        print(
-            f"\n--> Result: [HEURISTIC BASELINE] | Final DCR: {gov_dcr} | "
-            f"Compliant: {code_compliant} | Iterations: {iterations_to_converge} | Time: {t_elapsed}s"
-        )
-
-    return {
-        "case_id": case_id,
-        "name": case["name"],
-        "group": case.get("group", ""),
-        "model": "deterministic_heuristic",
-        "configuration": "heuristic",
-        "temperature": 0.0,
-        "seed": None,
-        "design_required": requires_design,
-        "success": success,
-        "code_compliant": code_compliant,
-        "governing_member_id": oracle_res.governing_member_type,
-        "governing_limit_state": oracle_res.governing_limit_state,
-        "dcr_flexure": None,
-        "dcr_shear": None,
-        "dcr_pm": None,
-        "final_stage": "HEURISTIC_RULE_BASED",
-        "stages_visited": [],
-        "wall_clock_time_sec": t_elapsed,
-        "turns_used": len(dcr_history),
-        "tools_called": ["classical_proportions_rule", "dcr_rescaling_rule"],
-        "missing_expected_tools": [],
-        "tool_failures_count": 0,
-        "tool_failures": [],
-        "initial_dcr": dcr_history[0] if dcr_history else gov_dcr,
-        "final_dcr": gov_dcr,
-        "dcr_history": dcr_history,
-        "iterations_to_converge": iterations_to_converge,
-        "nodes_count": 0,
-        "elements_count": 0,
-        "concrete_volume_m3": concrete_vol,
-        "baseline_concrete_volume_m3": case.get("baseline_concrete_volume_m3"),
-        "material_economy_ratio": econ_ratio,
-        "numerical_claims_count": 0,
-        "claims_made": [],
-        "claims_made_count": 0,
-        "omitted_metrics": expected_metrics,
-        "omitted_metrics_count": len(expected_metrics),
-        "expected_oracle_metrics": expected_metrics,
-        "claim_completeness_pct": 0.0,
-        "hallucinated_claims_count": 0,
-        "calculation_hallucination_rate_pct": 0.0,
-        "active_oracle_metrics": oracle_res.active_metrics,
-        "hallucinated_oracle_metrics": [],
-        "oracle_metric_errors": {},
-        "prompt_to_schema_fidelity_passed": None,
-        "failure_mode": failure_mode,
-        "error_messages": [oracle_res.error_message] if oracle_res.error_message else [],
-        "final_message_snippet": f"Heuristic sizing: col=({col_b}x{col_h}), beam=({beam_b}x{beam_h}), DCR={gov_dcr}",
-    }
-
-
-def run_single_case(
-    case: Dict[str, Any],
-    model: str,
-    provider: str,
-    api_base: str,
-    api_key: str,
+# =============================================================================
+# Shared scoring record
+# =============================================================================
+def build_record(
+    case: BenchmarkCase,
+    *,
     config: str,
-    max_turns: int,
-    repo_root: Path,
-    timeout: float = 300.0,
-    temperature: float = 0.0,
-    seed: Optional[int] = None,
-    verbose: bool = True,
+    model: str,
+    temperature: float,
+    seed: Optional[int],
+    oracle: OracleResult,
+    success: Optional[bool],
+    elapsed: float,
+    final_message: str = "",
+    tools_called: Optional[List[str]] = None,
+    tool_failures: Optional[List[Dict[str, Any]]] = None,
+    missing_expected_tools: Optional[List[str]] = None,
+    dcr_history: Optional[List[float]] = None,
+    final_stage: str = "",
+    stages_visited: Optional[List[str]] = None,
+    turns_used: int = 1,
+    nodes_count: int = 0,
+    elements_count: int = 0,
+    psfr: Optional[Tuple[bool, Dict[str, Any]]] = None,
+    deliverables: Optional[Dict[str, Any]] = None,
+    uniform_sections: Optional[bool] = None,
+    error_messages: Optional[List[str]] = None,
+    final_design_verified: Optional[bool] = None,
 ) -> Dict[str, Any]:
-    """Execute a single benchmark test case with the neuro-symbolic agent."""
-    case_id = case["id"]
-    prompt = case["prompt"]
-    expected_tools = case.get("expected_tools", [])
-
-    print(f"\n{'='*75}")
-    print(f"CASE: [{case_id}] {case['name']} (Group: {case.get('group', 'N/A')} | Config: {config})")
-    print(f"{'='*75}")
-
-    if config == "heuristic":
-        return run_heuristic_baseline(
-            case=case,
-            repo_root=repo_root,
-            verbose=verbose,
-        )
-    elif config == "direct_llm":
-        return run_direct_llm_baseline(
-            case=case,
-            model=model,
-            api_base=api_base,
-            api_key=api_key,
-            repo_root=repo_root,
-            timeout=timeout,
-            temperature=temperature,
-            seed=seed,
-            verbose=verbose,
-        )
-    elif config == "code_gen":
-        return run_code_gen_baseline(
-            case=case,
-            model=model,
-            api_base=api_base,
-            api_key=api_key,
-            repo_root=repo_root,
-            timeout=timeout,
-            temperature=temperature,
-            seed=seed,
-            verbose=verbose,
-        )
-
-    custom_instr = ""
-    if config == "ablated":
-        custom_instr = (
-            "IMPORTANT RESTRICTION FOR THIS RUN: Do not enter an optimization or reflection loop. "
-            "Do not call modify_project to resize members after running design checks. "
-            "Perform only a single linear pass through the workflow."
-        )
-
-    runner = AgentRunner(
-        provider=provider,
-        model=model,
-        base_url=api_base,
-        api_key=api_key or "ollama",
-        custom_instructions=custom_instr,
-        max_turns=max_turns,
-        temperature=temperature,
-        seed=seed,
-        timeout=timeout,
-        allow_model_recreation=bool(config != "ablated"),
-    )
-
-    if config == "ablated":
-        # 2. Physically remove modify_project from tool schemas to enforce no-reflection ablation
-        runner.tools = [
-            t for t in runner.tools
-            if t.get("function", {}).get("name") != "modify_project" and t.get("name") != "modify_project"
-        ]
-
-    t_start = time.perf_counter()
-    tools_called: List[str] = []
-    tool_failures: List[Dict[str, Any]] = []
-    stages_visited: List[str] = []
-    dcr_history: List[float] = []
-    error_messages: List[str] = []
-    final_message = ""
-    governing_dcr: Optional[float] = None
-    passed_flag: Optional[bool] = None
-
-    # Resolve optional multimodal image attachment for Vision cases (C05, C06)
-    image_path_str = case.get("image_path")
-    resolved_image: Optional[Path] = None
-    if image_path_str:
-        candidate_img = Path(image_path_str)
-        if candidate_img.is_absolute() and candidate_img.exists():
-            resolved_image = candidate_img
-        else:
-            for base_dir in [repo_root, Path(__file__).resolve().parent]:
-                candidate = (base_dir / candidate_img).resolve()
-                if candidate.exists():
-                    resolved_image = candidate
-                    break
-
-    try:
-        # Pass image attachment if supported by AgentRunner.run_stream
-        sig = inspect.signature(runner.run_stream)
-        if resolved_image:
-            if "attachments" in sig.parameters:
-                generator = runner.run_stream(prompt, attachments=[str(resolved_image)])
-            elif "image_path" in sig.parameters:
-                generator = runner.run_stream(prompt, image_path=str(resolved_image))
-            else:
-                warn_msg = (
-                    f"Runner does not accept multimodal image attachments; "
-                    f"image '{resolved_image.name}' for case '{case_id}' was omitted."
-                )
-                print(f"  [WARNING] {warn_msg}")
-                error_messages.append(warn_msg)
-                generator = runner.run_stream(prompt)
-        else:
-            generator = runner.run_stream(prompt)
-
-        for event in generator:
-            if isinstance(event, ToolCallEvent):
-                tools_called.append(event.tool_name)
-                if verbose:
-                    print(f"  -> Tool Call: {event.tool_name}")
-            elif isinstance(event, ToolResultEvent):
-                if not event.ok:
-                    tool_failures.append({"tool": event.tool_name, "error": event.error_message})
-                    if verbose:
-                        print(f"     ! Tool Failed: {event.tool_name}: {event.error_message}")
-                if event.data and isinstance(event.data, dict) and "governing_dcr" in event.data:
-                    dcr_val = float(event.data["governing_dcr"])
-                    dcr_history.append(dcr_val)
-            elif isinstance(event, StateUpdateEvent):
-                if event.stage not in stages_visited:
-                    stages_visited.append(event.stage)
-                if verbose:
-                    print(f"  [Stage]: {event.stage}")
-            elif isinstance(event, ErrorEvent):
-                error_messages.append(event.message)
-                if verbose:
-                    print(f"  [Agent Error]: {event.message}")
-            elif isinstance(event, CompleteEvent):
-                final_message = event.final_message
-                governing_dcr = event.governing_dcr
-                passed_flag = event.passed
-                if event.governing_dcr is not None and event.governing_dcr not in dcr_history:
-                    dcr_history.append(event.governing_dcr)
-
-    except Exception as exc:
-        error_messages.append(str(exc))
-        if verbose:
-            print(f"  [Exception during run]: {exc}")
-
-    t_elapsed = round(time.perf_counter() - t_start, 2)
-
-    # Extract final project state
-    project = runner.project
-    nodes_count = len(project.model.nodes) if project and hasattr(project, "model") else 0
-    elems_count = len(project.model.elements) if project and hasattr(project, "model") else 0
-    concrete_vol = calculate_concrete_volume(project)
-    final_stage = runner.state.stage.value
-
-    # Determine design requirement
-    design_run = "run_design" in tools_called
-    requires_design = case.get("design_required")
-    if requires_design is None:
-        requires_design = (
-            ("max_dcr" in case.get("target_constraints", {}))
-            or ("run_design" in expected_tools)
-            or design_run
-        )
-
-    # Strict Task Completion Rate (TCR) check:
-    # 1. Model has valid nodes and elements
-    # 2. All mandatory expected tools were executed without fatal errors
-    has_model = nodes_count > 0 and elems_count > 0
-    mandatory_tools = [t for t in expected_tools if t not in NON_MANDATORY_EXPECTED_TOOLS]
-    failed_tool_names = {f["tool"] for f in tool_failures}
-    successful_tools = [t for t in tools_called if t not in failed_tool_names]
-    missing_expected_tools = [t for t in mandatory_tools if t not in successful_tools]
-
-    # Model creation equivalence: if a model was successfully created via any valid creation tool,
-    # don't fail for alternative creation tools (e.g. create_model_from_plan_draft vs create_frame_model)
-    MODEL_CREATION_TOOLS = {
-        "create_frame_model",
-        "create_model_from_plan_draft",
-        "build_structural_model",
-        "create_project",
-        "import_from_sap2000",
-        "import_from_etabs",
-    }
-    if has_model and any(t in successful_tools for t in MODEL_CREATION_TOOLS):
-        missing_expected_tools = [t for t in missing_expected_tools if t not in MODEL_CREATION_TOOLS]
-
-    if mandatory_tools:
-        task_completed = has_model and (len(missing_expected_tools) == 0)
-    else:
-        analysis_run = any(
-            t in successful_tools for t in ["run_analysis", "run_time_history", "run_response_spectrum"]
-        )
-        interop_or_vision = any(
-            t in successful_tools
-            for t in ["import_from_sap2000", "import_from_etabs", "create_model_from_plan_draft"]
-        )
-        task_completed = has_model and (analysis_run or interop_or_vision)
-
-    # Strict artifact verification on disk for drawings and CAE export deliverables (P0.4)
-    dxf_found = False
-    cae_found = False
-    roundtrip_fidelity = None
-
-    if task_completed:
-        if case.get("target_constraints", {}).get("drawings_generated") is True or "generate_drawings" in expected_tools:
-            dxf_found = False
-            candidate_dirs = [
-                Path("."),
-                Path("./outputs"),
-                repo_root / "research_paper" / "drawings",
-                repo_root / "outputs",
-            ]
-            if hasattr(runner, "working_dir") and getattr(runner, "working_dir"):
-                candidate_dirs.append(Path(runner.working_dir))
-            if hasattr(runner, "output_dir") and getattr(runner, "output_dir"):
-                candidate_dirs.append(Path(runner.output_dir))
-
-            for cdir in candidate_dirs:
-                if cdir.exists():
-                    for dxf_file in cdir.glob("*.dxf"):
-                        try:
-                            if dxf_file.stat().st_size > 500:
-                                import ezdxf
-                                doc = ezdxf.readfile(str(dxf_file))
-                                if len(doc.modelspace()) >= 1:
-                                    dxf_found = True
-                                    break
-                        except Exception:
-                            pass
-                if dxf_found:
-                    break
-            if not dxf_found:
-                task_completed = False
-                error_messages.append(
-                    "Artifact verification failed: DXF drawing file not found or invalid on disk (<500 bytes or 0 entities)."
-                )
-
-        if "C03" in case_id or "C04" in case_id:
-            if "export_to_sap2000" in tools_called or "export_to_etabs" in tools_called:
-                cae_found = False
-                candidate_dirs = [
-                    Path("."),
-                    Path("./outputs"),
-                    repo_root / "research_paper" / "benchmarks" / "results",
-                    repo_root / "outputs",
-                ]
-                if hasattr(runner, "working_dir") and getattr(runner, "working_dir"):
-                    candidate_dirs.append(Path(runner.working_dir))
-                if hasattr(runner, "output_dir") and getattr(runner, "output_dir"):
-                    candidate_dirs.append(Path(runner.output_dir))
-
-                for cdir in candidate_dirs:
-                    if cdir.exists():
-                        for cae_file in list(cdir.glob("*.s2k")) + list(cdir.glob("*.e2k")):
-                            try:
-                                if cae_file.stat().st_size > 0:
-                                    from struct_link import read_project
-                                    p_check = read_project(cae_file)
-                                    if p_check and hasattr(p_check, "model") and len(p_check.model.nodes) > 0:
-                                        cae_found = True
-                                        # Numerical roundtrip fidelity check against runner.project.model
-                                        orig_nodes = len(runner.project.model.nodes) if runner.project and hasattr(runner.project, "model") else 0
-                                        reimp_nodes = len(p_check.model.nodes)
-                                        orig_elems = len(runner.project.model.elements) if runner.project and hasattr(runner.project, "model") else 0
-                                        reimp_elems = len(p_check.model.elements)
-                                        orig_vol = calculate_concrete_volume(runner.project) if runner.project else 0.0
-                                        reimp_vol = calculate_concrete_volume(p_check)
-                                        vol_err = abs(reimp_vol - orig_vol) / max(orig_vol, 1e-4) if orig_vol > 0 else 0.0
-
-                                        orig_bc = sum(1 for n in runner.project.model.nodes.values() if getattr(n, "is_restrained", False)) if runner.project and hasattr(runner.project, "model") else 0
-                                        reimp_bc = sum(1 for n in p_check.model.nodes.values() if getattr(n, "is_restrained", False))
-
-                                        orig_t1 = None
-                                        reimp_t1 = None
-                                        t1_err = 0.0
-                                        try:
-                                            from struct_agent.tools.analysis import run_analysis
-                                            if runner.project and hasattr(runner.project, "model") and len(runner.project.model.nodes) > 0:
-                                                run_analysis(runner.project, analysis_case_id="RT_orig_modal", analysis_type="modal", num_modes=1)
-                                                if "RT_orig_modal" in runner.project.analysis_results and runner.project.analysis_results["RT_orig_modal"].modal_result:
-                                                    orig_t1 = runner.project.analysis_results["RT_orig_modal"].modal_result.modes[0].period
-
-                                            run_analysis(p_check, analysis_case_id="RT_reimp_modal", analysis_type="modal", num_modes=1)
-                                            if "RT_reimp_modal" in p_check.analysis_results and p_check.analysis_results["RT_reimp_modal"].modal_result:
-                                                reimp_t1 = p_check.analysis_results["RT_reimp_modal"].modal_result.modes[0].period
-
-                                            if orig_t1 is not None and reimp_t1 is not None:
-                                                t1_err = abs(reimp_t1 - orig_t1) / max(orig_t1, 1e-4)
-                                        except Exception:
-                                            pass
-
-                                        fidelity_passed = (
-                                            reimp_nodes == orig_nodes
-                                            and reimp_elems == orig_elems
-                                            and vol_err < 0.01
-                                            and reimp_bc == orig_bc
-                                            and (t1_err < 0.01 if (orig_t1 is not None and reimp_t1 is not None) else True)
-                                        )
-                                        roundtrip_fidelity = {
-                                            "file": cae_file.name,
-                                            "nodes_original": orig_nodes,
-                                            "nodes_reimported": reimp_nodes,
-                                            "elements_original": orig_elems,
-                                            "elements_reimported": reimp_elems,
-                                            "concrete_volume_original_m3": round(orig_vol, 3),
-                                            "concrete_volume_reimported_m3": round(reimp_vol, 3),
-                                            "volume_rel_error": round(vol_err, 4),
-                                            "boundary_conditions_original": orig_bc,
-                                            "boundary_conditions_reimported": reimp_bc,
-                                            "t1_original": round(orig_t1, 4) if orig_t1 is not None else None,
-                                            "t1_reimported": round(reimp_t1, 4) if reimp_t1 is not None else None,
-                                            "t1_rel_error": round(t1_err, 4) if (orig_t1 is not None and reimp_t1 is not None) else None,
-                                            "fidelity_passed": fidelity_passed,
-                                        }
-                                        if not fidelity_passed:
-                                            task_completed = False
-                                            error_messages.append(
-                                                f"CAE roundtrip numerical fidelity failed: {roundtrip_fidelity}"
-                                            )
-                                        break
-                            except Exception as c_err:
-                                error_messages.append(f"CAE reimport error on {cae_file.name}: {c_err}")
-                    if cae_found:
-                        break
-                if not cae_found:
-                    task_completed = False
-                    error_messages.append(
-                        "Artifact verification failed: exported CAE file (.s2k/.e2k) not found or invalid on disk."
-                    )
-
-    # -----------------------------------------------------------------------
-    # Independent Re-verification of Final Deliverable
-    # -----------------------------------------------------------------------
-    oracle_dcr: Optional[float] = None
-    oracle_reverified_ok: bool = False
-    gov_member_id: Optional[str] = None
-    gov_limit_state: Optional[str] = None
-    dcr_flexure: Optional[float] = None
-    dcr_shear: Optional[float] = None
-    dcr_pm: Optional[float] = None
-
-    if requires_design and has_model and runner.project:
-        try:
-            # Re-solve the actual final model directly to guard against stale DCRs
-            run_analysis(runner.project, analysis_case_id="oracle_independent_eval")
-            res_des = run_design(runner.project, design_case_id="oracle_independent_eval")
-            if res_des.ok and res_des.data:
-                oracle_dcr = round(float(res_des.data.get("governing_dcr", 0.0)), 3)
-                oracle_reverified_ok = True
-                gov_member_id = res_des.data.get("governing_member_id")
-                gov_limit_state = res_des.data.get("governing_limit_state")
-                dcr_flexure = res_des.data.get("dcr_flexure")
-                dcr_shear = res_des.data.get("dcr_shear")
-                dcr_pm = res_des.data.get("dcr_pm")
-        except Exception as exc:
-            error_messages.append(f"Independent oracle re-verification failed: {exc}")
-
-    if requires_design:
-        if oracle_reverified_ok and oracle_dcr is not None:
-            final_dcr = oracle_dcr
-            code_compliant = (oracle_dcr <= 1.00)
-        elif governing_dcr is not None:
-            final_dcr = governing_dcr
-            code_compliant = (governing_dcr <= 1.00)
-        else:
-            final_dcr = None
-            code_compliant = False
-    else:
-        final_dcr = governing_dcr
-        code_compliant = None
-
-    # Extract agent's final member cross-sections from runner.project
-    col_b, col_h, beam_b, beam_h = None, None, None, None
-    if runner.project and hasattr(runner.project, "model") and runner.project.model:
-        sections = getattr(runner.project.model, "sections", [])
-        for s in sections:
-            sid = (getattr(s, "id", "") or "").lower()
-            b_val = getattr(s, "b", None) or getattr(s, "width", None)
-            h_val = getattr(s, "h", None) or getattr(s, "height", None) or getattr(s, "depth", None)
-            if ("col" in sid) and b_val and h_val and col_b is None:
-                col_b, col_h = float(b_val), float(h_val)
-            elif ("beam" in sid or "girder" in sid) and b_val and h_val and beam_b is None:
-                beam_b, beam_h = float(b_val), float(h_val)
-        if (col_b is None or beam_b is None) and sections:
-            for s in sections:
-                b_val = getattr(s, "b", None) or getattr(s, "width", None)
-                h_val = getattr(s, "h", None) or getattr(s, "height", None) or getattr(s, "depth", None)
-                if b_val and h_val:
-                    if col_b is None:
-                        col_b, col_h = float(b_val), float(h_val)
-                    elif beam_b is None:
-                        beam_b, beam_h = float(b_val), float(h_val)
-
-    # Measure Calculation Hallucinations (CHR) from agent text claims vs. ground-truth physics
-    claims_extracted = parse_numerical_claims_from_text(final_message)
-    parsed_claims = {
-        "claimed_total_weight_kN": claims_extracted.get("total_weight_kN"),
-        "claimed_base_shear_kN": claims_extracted.get("base_shear_kN"),
-        "claimed_fundamental_period_s": claims_extracted.get("fundamental_period_s"),
-        "claimed_period_t2_s": claims_extracted.get("period_t2_s"),
-        "claimed_period_t3_s": claims_extracted.get("period_t3_s"),
-        "claimed_governing_dcr": claims_extracted.get("governing_dcr"),
-        "claimed_modal_mass_ratio": claims_extracted.get("modal_mass_ratio"),
-        "claimed_peak_displacement_m": claims_extracted.get("peak_displacement_m"),
-    }
-
-    verifier = OracleVerifier(repo_root=repo_root)
-    oracle_eval = verifier.evaluate(
-        case_id=case_id,
-        col_b=col_b,
-        col_h=col_h,
-        beam_b=beam_b,
-        beam_h=beam_h,
-        claims=parsed_claims,
-    )
-
-    active_oracle_metrics = oracle_eval.active_metrics
-    expected_oracle_metrics = getattr(oracle_eval, "expected_metrics", active_oracle_metrics) or active_oracle_metrics
-    hallucinated_oracle_metrics = oracle_eval.hallucinated_metrics
-    oracle_metric_errors = oracle_eval.metric_errors
-    measured_chr_pct = oracle_eval.calculation_hallucination_rate_pct
-    num_claims = max(len(active_oracle_metrics), 1)
-    num_hallucinations = len(hallucinated_oracle_metrics)
-
-    if not gov_limit_state and oracle_eval.governing_limit_state:
-        gov_limit_state = oracle_eval.governing_limit_state
-        gov_member_id = oracle_eval.governing_member_type
-
-    # Convergence iterations (N_iter) for self-healing / reflection cases
-    iterations_to_converge = None
-    if requires_design and dcr_history:
-        initial_dcr = dcr_history[0]
-        if initial_dcr is not None and initial_dcr > 1.0:
-            iterations_to_converge = (len(dcr_history) - 1) if code_compliant else None
-        elif initial_dcr is not None and initial_dcr <= 1.0:
-            iterations_to_converge = 0
-
-    # Prompt-to-Schema Fidelity Rate (PSFR)
-    psfr_passed, psfr_details = evaluate_prompt_to_schema_fidelity(runner.project, case, runner=runner)
-
-    # Failure Mode Taxonomy (Item #10)
-    failure_mode = None
-    MODEL_CREATION_TOOLS = {
-        "create_frame_model", "create_model_from_plan_draft",
-        "import_from_sap2000", "import_from_etabs",
-    }
-    expected_creation = [t for t in expected_tools if t in MODEL_CREATION_TOOLS]
-    if not (task_completed and (code_compliant if requires_design else True)):
-        if nodes_count == 0 or elems_count == 0 or (expected_creation and not any(t in successful_tools for t in expected_creation)):
-            failure_mode = "model_construction"
-        elif missing_expected_tools:
-            failure_mode = "missing_tool"
-        elif (case.get("target_constraints", {}).get("drawings_generated") and not dxf_found) or (("C03" in case_id or "C04" in case_id) and not cae_found):
-            failure_mode = "artifact_missing"
-        elif psfr_passed is False:
-            failure_mode = "schema_fidelity"
-        elif requires_design and (final_dcr is None or final_dcr > 1.0):
-            failure_mode = "dcr_non_convergence"
-        else:
-            failure_mode = "runtime_error"
-
-    res = {
-        "case_id": case_id,
-        "name": case["name"],
-        "group": case.get("group", ""),
+    sol = oracle.solution
+    # Tool-using agents must have checked the sections they deliver (run_design after the last model change)
+    compliant = oracle.code_compliant and final_design_verified is not False
+    design = sol.design or {}
+    final_dcr = sol.governing_dcr
+    history = list(dcr_history or [])
+    iterations = None
+    if case.spec.initial_sections is not None and history and compliant:
+        iterations = next((i for i, d in enumerate(history) if d <= case.deliverables.max_dcr), len(history) - 1)
+    behavior = None
+    if case.evaluation.expected_behavior is not None:
+        behavior = assess_expected_behavior(case, final_message, oracle)
+    # A probe that withholds an input (D03, D04) is answered by asking for it before modelling: the run is
+    # complete, and there is no model whose fidelity could be checked
+    if case.evaluation.withheld and nodes_count == 0 and behavior:
+        success, psfr = True, None
+    baseline = case.baseline_design
+    return {
+        "case_id": case.id,
+        "name": case.name,
+        "group": case.group,
+        "difficulty": case.difficulty.label,
+        "taxonomy": case.taxonomy.model_dump(),
         "model": model,
         "configuration": config,
         "temperature": temperature,
         "seed": seed,
-        "design_required": requires_design,
-        "success": task_completed,
-        "code_compliant": code_compliant if requires_design else None,
-        "governing_member_id": gov_member_id,
-        "governing_limit_state": gov_limit_state,
-        "dcr_flexure": dcr_flexure,
-        "dcr_shear": dcr_shear,
-        "dcr_pm": dcr_pm,
-        "final_stage": final_stage,
-        "stages_visited": stages_visited,
-        "wall_clock_time_sec": t_elapsed,
-        "turns_used": len(runner.messages) // 2,
-        "tools_called": tools_called,
-        "missing_expected_tools": missing_expected_tools,
-        "tool_failures_count": len(tool_failures),
-        "tool_failures": tool_failures,
-        "initial_dcr": dcr_history[0] if dcr_history else None,
+        "design_required": ccr_eligible(case),
+        "design_task": case.deliverables.design,
+        "success": success,
+        "code_compliant": compliant if ccr_eligible(case) or case.deliverables.design == "check" else None,
+        "final_design_verified": final_design_verified,
+        "design_space_violations": oracle.design_space_violations,
+        "uniform_sections": uniform_sections,
+        "final_sections": None if sol.sections is None else sol.sections.model_dump(),
+        "governing_member_id": design.get("governing_member_id"),
+        "governing_limit_state": design.get("governing_limit_state"),
+        "dcr_flexure": design.get("dcr_flexure"),
+        "dcr_shear": design.get("dcr_shear"),
+        "initial_dcr": history[0] if history else None,
+        "reference_initial_dcr": None if case.reference_solution is None else case.reference_solution.initial_dcr,
         "final_dcr": final_dcr,
-        "dcr_history": dcr_history,
-        "iterations_to_converge": iterations_to_converge,
+        "dcr_history": history,
+        "iterations_to_converge": iterations,
+        "concrete_volume": sol.concrete_volume,
+        "baseline_concrete_volume": None if baseline is None or not baseline.feasible else baseline.concrete_volume,
+        "material_economy_ratio": oracle.material_economy_ratio,
+        # Metrics the oracle can score (a withheld input can leave some without a reference value)
+        "expected_oracle_metrics": list(oracle.claims_made) + list(oracle.omitted_metrics),
+        "claims_made": oracle.claims_made,
+        "claims_made_count": len(oracle.claims_made),
+        "omitted_metrics": oracle.omitted_metrics,
+        "claim_completeness_pct": oracle.claim_completeness_pct,
+        "hallucinated_oracle_metrics": oracle.hallucinated_metrics,
+        "hallucinated_claims_count": len(oracle.hallucinated_metrics),
+        "calculation_hallucination_rate_pct": oracle.calculation_hallucination_rate_pct,
+        "oracle_metric_errors": oracle.metric_errors,
+        "oracle_metrics": sol.metrics,
+        "oracle_error": sol.error,
+        "prompt_to_schema_fidelity_passed": None if psfr is None else psfr[0],
+        "prompt_to_schema_fidelity_details": None if psfr is None else psfr[1],
+        "deliverables": deliverables,
+        "expected_behavior": case.evaluation.expected_behavior,
+        "behavior_passed": behavior,
+        "final_stage": final_stage,
+        "stages_visited": stages_visited or [],
+        "wall_clock_time_sec": round(elapsed, 2),
+        "turns_used": turns_used,
+        "tools_called": tools_called or [],
+        "missing_expected_tools": missing_expected_tools or [],
+        "tool_failures_count": len(tool_failures or []),
+        "tool_failures": tool_failures or [],
         "nodes_count": nodes_count,
-        "elements_count": elems_count,
-        "concrete_volume_m3": concrete_vol,
-        "baseline_concrete_volume_m3": case.get("baseline_concrete_volume_m3"),
-        "material_economy_ratio": (
-            round(concrete_vol / case["baseline_concrete_volume_m3"], 3)
-            if (case.get("baseline_concrete_volume_m3") and concrete_vol > 0 and code_compliant)
-            else None
-        ),
-        "numerical_claims_count": len(oracle_eval.claims_made),
-        "claims_made": oracle_eval.claims_made,
-        "claims_made_count": len(oracle_eval.claims_made),
-        "omitted_metrics": oracle_eval.omitted_metrics,
-        "omitted_metrics_count": len(oracle_eval.omitted_metrics),
-        "expected_oracle_metrics": expected_oracle_metrics,
-        "claim_completeness_pct": round(
-            (len(set(oracle_eval.claims_made) & set(expected_oracle_metrics)) / max(len(expected_oracle_metrics), 1)) * 100.0,
-            1,
-        ),
-        "hallucinated_claims_count": num_hallucinations,
-        "calculation_hallucination_rate_pct": measured_chr_pct,
-        "active_oracle_metrics": active_oracle_metrics,
-        "hallucinated_oracle_metrics": hallucinated_oracle_metrics,
-        "oracle_metric_errors": oracle_metric_errors,
-        "prompt_to_schema_fidelity_passed": psfr_passed,
-        "prompt_to_schema_fidelity_details": psfr_details,
-        "failure_mode": failure_mode,
-        "roundtrip_fidelity": roundtrip_fidelity,
-        "error_messages": error_messages,
-        "final_message_snippet": (
-            (final_message[:200] + "...") if len(final_message) > 200 else final_message
-        ),
+        "elements_count": elements_count,
+        "failure_mode": None,
+        "error_messages": error_messages or [],
+        "final_message_snippet": (final_message[:300] + "...") if len(final_message) > 300 else final_message,
     }
 
-    if task_completed and not requires_design:
-        status_badge = "[SUCCESS]"
-    elif task_completed and code_compliant:
-        status_badge = "[SUCCESS - COMPLIANT]"
-    elif task_completed:
-        status_badge = "[COMPLETED - OVERSTRESSED]"
+
+def assess_expected_behavior(case: BenchmarkCase, final_message: str, oracle: OracleResult) -> bool:
+    """Robustness probes: the response must acknowledge the problem instead of silently proceeding."""
+    behavior = case.evaluation.expected_behavior
+    acknowledged = bool(re.search(BEHAVIOR_PATTERNS[behavior], final_message or "", re.IGNORECASE))
+    if behavior == "report_infeasible":
+        # Honest infeasibility: no compliant design within the limits is claimed, and the response says so
+        return acknowledged and not oracle.code_compliant and not oracle.design_space_violations
+    return acknowledged
+
+
+def classify_failure(record: Dict[str, Any]) -> Optional[str]:
+    if record["configuration"] == "heuristic" or record["success"] is None:
+        return None
+    # Check cases (design_task 'check') succeed by reporting the existing design, compliant or not
+    judged_compliance = record["code_compliant"] if record["design_task"] == "design" else None
+    ok = record["success"] and (judged_compliance is not False)
+    if record["behavior_passed"] is not None:
+        ok = ok and record["behavior_passed"]
+    if ok:
+        return None
+    # Setup failures, not the model's: the LLM server failed (a crash, a refused connection) or the context
+    # window ended the run or dropped the task from the prompt. Such runs are re-run (--resume).
+    if record.get("provider_error"):
+        return "provider_error"
+    if record.get("final_response_truncated") or record.get("prompt_truncations"):
+        return "context_limit"
+    if record.get("final_response_capped"):
+        return "runaway_generation"  # the model generated (mostly thought) until the cap or the window cut it
+    if record["configuration"] in ("direct_llm", "code_gen") and not record["success"]:
+        return "runtime_error"  # no usable answer: the script failed, or no JSON answer was found
+    if record["nodes_count"] == 0 and record["configuration"] in ("full_agent", "ablated"):
+        return "model_construction"
+    if record["missing_expected_tools"]:
+        return "missing_tool"
+    if record["deliverables"] and not all(record["deliverables"].values()):
+        return "artifact_missing"
+    if record["prompt_to_schema_fidelity_passed"] is False:
+        return "schema_fidelity"
+    if record["behavior_passed"] is False:
+        return "probe_behavior"
+    if record["design_space_violations"]:
+        return "design_space_violation"
+    if record.get("final_design_verified") is False:
+        return "unverified_design"
+    if judged_compliance is False:
+        return "dcr_non_convergence"
+    return "runtime_error"
+
+
+# =============================================================================
+# Single-shot baselines (direct LLM, code generation)
+# =============================================================================
+def single_shot_messages(case: BenchmarkCase, mode: str) -> List[Dict[str, Any]]:
+    length, force = _length_unit(case), _force_unit(case)
+    keys = []
+    if case.spec.sections is None and case.spec.cae is None:
+        keys += [f'"{k}": <float, {d} in {length}>' for k, d in (
+            ("col_b", "column width"), ("col_h", "column depth"), ("beam_b", "beam width"), ("beam_h", "beam depth"))]
+    units = {"total_weight": force, "base_shear": force, "max_base_reaction": force, "peak_roof_displacement": length,
+             **answer_units(case)}  # the prompt's unit where it asks for another (the schema must not contradict it)
+    keys += [f'"{m}": <float, {METRIC_DESCRIPTIONS[m]}{" in " + units[m] if m in units else ""}>'
+             for m in case.evaluation.required_metrics]
+    # The JSON-only answer has no prose: without this field the robustness probes (stating an infeasible design, a
+    # missing input, a contradiction) could never be answered (direct_llm passed 0 of 7). Neutral, so it hints at none.
+    keys.append('"notes": <string, any remarks for the user about the problem or your answer, or "" if none>')
+    schema = "{\n  " + ",\n  ".join(keys) + "\n}"
+    if mode == "direct_llm":
+        system = ("You are an expert structural engineer. Solve the user's problem and output ONLY a JSON object "
+                  f"with these keys (no markdown, no comments):\n{schema}")
     else:
-        status_badge = (
-            f"[FAILED - MISSING TOOLS: {missing_expected_tools}]"
-            if missing_expected_tools
-            else "[FAILED]"
-        )
+        system = ("You are an expert structural engineer and scientific Python programmer. Write one standalone "
+                  "Python script (numpy/scipy only) that solves the user's problem from first principles and prints "
+                  f"a single JSON object with these keys to stdout:\n{schema}\n"
+                  "Relative file paths in the problem are relative to the script's working directory. "
+                  "Output only the code inside ```python ... ``` fences.")
+    prompt = case.prompt
+    if case.spec.cae is not None:  # informational parity: the agent reads this file through its tools
+        text = (REPO_ROOT / case.spec.cae.file).read_text(encoding="utf-8", errors="replace")
+        prompt += f"\n\n--- Contents of {case.spec.cae.file} ---\n{text}\n--- End of file ---"
+    images = [str(REPO_ROOT / case.spec.plan_image)] if case.spec.plan_image else None
+    return [{"role": "system", "content": system}, build_multimodal_message(prompt, images)]
 
-    dcr_str = f"DCR: {res['final_dcr']:.3f}" if res["final_dcr"] is not None else "DCR: N/A"
-    print(f"\n--> Result: {status_badge} | Stage: {final_stage} | {dcr_str} | Time: {t_elapsed}s")
-    return res
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Autonomous Structural AI Benchmarking Suite")
-    parser.add_argument("--model", type=str, default="gemini-3.8-flash", help="Model identifier")
-    parser.add_argument("--provider", type=str, default="auto", help="Provider: ollama, native, gemini, etc.")
-    parser.add_argument("--api-base", type=str, default="", help="Custom API endpoint (e.g. http://localhost:11434/v1)")
-    parser.add_argument("--api-key", type=str, default="", help="API key")
-    parser.add_argument("--cases", type=str, default="all", help="Case ID(s) comma-separated, group name (Group_A_2D), or 'all'")
-    parser.add_argument(
-        "--config",
-        type=str,
-        default="full_agent",
-        choices=["full_agent", "ablated", "direct_llm", "code_gen", "heuristic"],
-        help="Benchmark configuration (full_agent, ablated, direct_llm, code_gen, heuristic)",
+def chat_completion(api_base: str, api_key: str, model: str, messages: List[Dict[str, Any]],
+                    temperature: float, seed: Optional[int], timeout: float,
+                    max_tokens: Optional[int] = None, reasoning_effort: Optional[str] = None) -> Tuple[str, Dict[str, Any]]:
+    """The reply text and its log entry: token usage, the finish reason ('length' when the token limit cut it
+    off) and the length of a thinking model's reasoning."""
+    payload: Dict[str, Any] = {"model": model, "messages": messages, "temperature": temperature}
+    if seed is not None:
+        payload["seed"] = seed
+    if max_tokens:
+        payload["max_tokens"] = max_tokens
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
+    req = urllib.request.Request(
+        f"{api_base.rstrip('/')}/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key or 'ollama'}"},
+        method="POST",
     )
-    parser.add_argument("--max-turns", type=int, default=20, help="Maximum dialogue turns per case")
-    parser.add_argument("--timeout", type=float, default=300.0, help="LLM request timeout in seconds (default: 300.0)")
-    parser.add_argument("--temperature", type=float, default=None, help="Sampling temperature (default: 0.2 if seeds > 1, else 0.0)")
-    parser.add_argument("--seeds", type=int, default=None, help="Number of random seed repetitions per case (default: 5 for full_agent/ablated, 1 for single-shot/heuristic)")
-    parser.add_argument("--cases-file", type=str, default="", help="Custom benchmark cases JSON path")
-    parser.add_argument("--output-dir", type=str, default="", help="Custom output directory for results")
-    parser.add_argument("--update-file", type=str, default="", help="Existing results JSON file to update in-place with new case run(s)")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    choice = data.get("choices", [{}])[0]
+    message = choice.get("message", {})
+    usage = data.get("usage") or {}
+    entry = {
+        "prompt_tokens": usage.get("prompt_tokens"), "completion_tokens": usage.get("completion_tokens"),
+        "finish_reason": choice.get("finish_reason"), "reasoning_chars": len(message.get("reasoning") or ""),
+    }
+    if entry["finish_reason"] == "length":
+        entry["reasoning_tail"] = reasoning_tail(message.get("reasoning"))
+    return message.get("content", "") or "", entry
+
+
+def reasoning_tail(reasoning: Optional[str]) -> str:
+    """The end of a cut-off response's reasoning: shows what a runaway was doing (gemma code_gen B01 thought 131k
+    tokens in one run and answered in 13k in another, at temperature 0)."""
+    return (reasoning or "")[-2000:]
+
+
+def script_from_reply(reply: str) -> str:
+    """The code_gen script: the last Python code block of the reply (a model may draft a block and then write the
+    final one: qwen B03 ended a draft with 'I will write a cleaner version in the final code block'). A block
+    whose closing fence is missing runs from its opening fence; a reply without fences runs as it is."""
+    blocks = re.findall(r"```[ \t]*(\w*)[^\n]*\n(.*?)```", reply or "", re.DOTALL)
+    python = [code for lang, code in blocks if lang.lower() in ("python", "py", "python3", "")]
+    if python or blocks:
+        return (python or [code for _, code in blocks])[-1].strip()
+    opened = re.search(r"```[ \t]*\w*[^\n]*\n(.*)", reply or "", re.DOTALL)
+    return (opened.group(1) if opened else reply or "").strip()
+
+
+def _parse_json_object(text: str) -> Dict[str, Any]:
+    if not text:
+        return {}
+    # 1. Try markdown code blocks first
+    code_blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    candidates = list(code_blocks)
+
+    # 2. Add greedy block match
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if match and match.group(0) not in candidates:
+        candidates.append(match.group(0))
+
+    for cand in candidates:
+        try:
+            return json.loads(cand)
+        except ValueError:
+            pass
+        # Clean trailing commas (e.g. {"a": 1, })
+        cleaned = re.sub(r",\s*([}\]])", r"\1", cand)
+        try:
+            return json.loads(cleaned)
+        except ValueError:
+            pass
+    return {}
+
+
+_PROMPT_DISPLACEMENT_UNIT = re.compile(r"roof displacement[^.]*?\((mm|cm|m|in|ft)\)", re.IGNORECASE)
+
+
+def answer_units(case: BenchmarkCase) -> Dict[str, str]:
+    """Length units the single-shot JSON schema asks for where they differ from the spec's: the prompt's unit of the
+    roof displacement (A06 and B07 ask for mm). The schema once gave the spec's unit (m) there, and answers followed
+    either the prompt or the schema (deepseek code_gen A06 printed 47.39, in mm)."""
+    asked = _PROMPT_DISPLACEMENT_UNIT.search(case.prompt)
+    if asked and asked.group(1) != _length_unit(case) and "peak_roof_displacement" in case.evaluation.required_metrics:
+        return {"peak_roof_displacement": asked.group(1)}
+    return {}
+
+
+def single_shot_claims(case: BenchmarkCase, parsed: Dict[str, Any], units: Dict[str, str]) -> Dict[str, Any]:
+    """The metric values of a JSON answer, converted to spec units from the ``units`` its schema asked for (a record
+    without them was asked in spec units)."""
+    claims = {m: parsed[m] for m in METRICS if m in parsed}
+    for metric, unit in units.items():
+        if isinstance(claims.get(metric), (int, float)):
+            claims[metric] = claims[metric] * conversion_factor(f"kN, {unit}", case.spec.units, "length")
+    return claims
+
+
+def _sections_from_answer(parsed: Dict[str, Any]) -> Optional[SectionPair]:
+    try:
+        return SectionPair(column=(float(parsed["col_b"]), float(parsed["col_h"])),
+                           beam=(float(parsed["beam_b"]), float(parsed["beam_h"])))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def run_single_shot(case: BenchmarkCase, oracle: OracleVerifier, *, mode: str, model: str, api_base: str,
+                    api_key: str, temperature: float, seed: Optional[int], timeout: float,
+                    max_tokens: Optional[int] = None, reasoning_effort: Optional[str] = None) -> Dict[str, Any]:
+    t0 = time.perf_counter()
+    errors: List[str] = []
+    reply = ""
+    parsed: Dict[str, Any] = {}
+    executed = None
+    stdout = ""
+    call: Dict[str, Any] = {}
+    provider_error = False
+    try:
+        try:
+            reply, call = chat_completion(api_base, api_key, model, single_shot_messages(case, mode), temperature,
+                                            seed, timeout, max_tokens, reasoning_effort)
+        except Exception:
+            provider_error = True
+            raise
+        if mode == "direct_llm":
+            parsed = _parse_json_object(reply)
+        else:
+            script = script_from_reply(reply)
+            with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as tf:
+                tf.write(script)
+            workspace = make_workspace(case)
+            try:
+                run = subprocess.run([sys.executable, tf.name], capture_output=True, text=True, timeout=120,
+                                     cwd=str(workspace))
+                executed = run.returncode == 0
+                stdout = run.stdout
+                if executed:
+                    parsed = _parse_json_object(run.stdout)
+                else:
+                    errors.append(f"Script error: {run.stderr[-500:]}")
+            finally:
+                os.unlink(tf.name)
+                shutil.rmtree(workspace, ignore_errors=True)
+    except Exception as exc:
+        errors.append(f"{type(exc).__name__}: {exc}")
+
+    sections = _sections_from_answer(parsed)
+    claims = single_shot_claims(case, parsed, answer_units(case))
+    res = oracle.evaluate(case.id, sections, claims)
+    success = bool(parsed) and (executed is not False) and res.solution.error is None
+    answer = reply if mode == "direct_llm" else stdout  # code_gen: the user receives the script's output, not its source
+    record = build_record(
+        case, config=mode, model=model, temperature=temperature, seed=seed, oracle=res, success=success,
+        elapsed=time.perf_counter() - t0, final_message=answer, final_stage="SINGLE_SHOT",
+        error_messages=errors + ([f"Oracle: {res.solution.error}"] if res.solution.error else []),
+    )
+    record["code_executed"] = executed
+    record["answer_units"] = answer_units(case)  # units the JSON schema asked for, where not the spec's
+    if executed is False:  # a crashed script gave no answer, whatever its comments assume or ask
+        record["success"] = False
+    record["final_message"] = reply  # the answer (direct_llm) or the script (code_gen), for audits
+    if mode == "code_gen":
+        record["script_output"] = stdout[-4000:]
+    record["llm_calls"] = [call] if call else []
+    record["max_output_tokens"] = max_tokens
+    record["reasoning_effort"] = reasoning_effort
+    record["final_response_capped"] = runaway_response(call, max_tokens)
+    record["final_response_truncated"] = call.get("finish_reason") == "length" and not record["final_response_capped"]
+    record["provider_error"] = provider_error
+    record["failure_mode"] = classify_failure(record)
+    print(f"--> [{mode}] DCR={record['final_dcr']} compliant={record['code_compliant']} "
+          f"CHR={record['calculation_hallucination_rate_pct']}% ({time.perf_counter() - t0:.1f}s)")
+    return record
+
+
+# =============================================================================
+# Heuristic baseline
+# =============================================================================
+def _snap(value: float, step: float) -> float:
+    return round(math.ceil(value / step - 1e-9) * step, 4)
+
+
+def heuristic_sections(case: BenchmarkCase) -> SectionPair:
+    """Rule of thumb: square columns H_total/20, beams b = 0.30 m (12 in on the US grid) and h = max(span/12, l/18.5)
+    (all >= the stated minimums, on the design grid)."""
+    g, geo = case.design_grid, case.spec.geometry
+    to_m = conversion_factor(case.spec.units, "kN, m", "length")
+    col = max(g.column_min, _snap(sum(geo.story_heights) / 20.0, g.step))
+    beam_b = max(g.beam_width_min, _snap(0.30 / to_m, g.step))
+    beam_h = max(beam_b, _snap(max(geo.bay_widths_x + (geo.bay_widths_y or [])) / 12.0, g.step),
+                 _snap(case.min_beam_depth, g.step))
+    return _clamp(case, SectionPair(column=(col, col), beam=(beam_b, beam_h)))
+
+
+def _clamp(case: BenchmarkCase, s: SectionPair) -> SectionPair:
+    lim = case.spec.section_limits
+    if lim is None:
+        return s
+    col = min(s.column[0], lim.max_width, lim.max_depth)
+    bb = min(s.beam[0], lim.max_width)
+    bh = max(bb, min(s.beam[1], lim.max_depth))
+    return SectionPair(column=(col, col), beam=(bb, bh))
+
+
+def run_heuristic(case: BenchmarkCase, oracle: OracleVerifier) -> Dict[str, Any]:
+    t0 = time.perf_counter()
+    if case.deliverables.design != "design":
+        res = oracle.evaluate(case.id, None)
+        record = build_record(case, config="heuristic", model="deterministic_heuristic", temperature=0.0, seed=None,
+                              oracle=res, success=None, elapsed=time.perf_counter() - t0, final_stage="NOT_APPLICABLE")
+        return record
+    g = case.design_grid
+    sections = heuristic_sections(case)
+    history: List[float] = []
+    for _ in range(6):
+        sol = oracle.solve(case.id, sections)
+        if sol.governing_dcr is None:
+            break
+        history.append(sol.governing_dcr)
+        if sol.governing_dcr <= case.deliverables.max_dcr:
+            break
+        k = math.sqrt(max(sol.governing_dcr, 1.05))
+        col = min(_snap(sections.column[0] * k, g.step), g.column_max)
+        bb = min(_snap(sections.beam[0] * k, g.step), g.beam_width_max)
+        bh = max(bb, min(_snap(sections.beam[1] * k, g.step), g.beam_depth_max))
+        grown = _clamp(case, SectionPair(column=(col, col), beam=(bb, bh)))
+        if grown == sections:
+            break
+        sections = grown
+    res = oracle.evaluate(case.id, sections)
+    record = build_record(case, config="heuristic", model="deterministic_heuristic", temperature=0.0, seed=None,
+                          oracle=res, success=res.solution.error is None, elapsed=time.perf_counter() - t0,
+                          dcr_history=history, final_stage="HEURISTIC_RULE_BASED", turns_used=len(history))
+    record["failure_mode"] = None if res.code_compliant else "dcr_non_convergence"
+    print(f"--> [heuristic] sections={sections.model_dump()} DCR={record['final_dcr']} compliant={record['code_compliant']}")
+    return record
+
+
+# =============================================================================
+# Tool-using agents
+# =============================================================================
+def agent_sections(case: BenchmarkCase, project: Any) -> Tuple[Optional[SectionPair], Optional[bool]]:
+    """Most common column and beam sections of the agent's model, in spec units, and whether each is uniform."""
+    model = getattr(project, "model", None)
+    if model is None or not model.elements:
+        return None, None
+    model_units = getattr(project.metadata, "units", None) or "kN, m"
+    scale = conversion_factor(model_units, case.spec.units, "length")
+    nodes = {n.id: n for n in model.nodes}
+    sections = {s.id: s for s in model.sections}
+    is_3d = any(abs(getattr(n, "z", 0.0)) > 1e-6 for n in model.nodes)
+    counts: Dict[str, Dict[str, int]] = {"column": {}, "beam": {}}
+    for e in model.elements:
+        a, b = nodes.get(e.start_node), nodes.get(e.end_node)
+        if a is None or b is None:
+            continue
+        vertical = (abs(a.x - b.x) < 1e-6 and abs(a.y - b.y) < 1e-6) if is_3d else abs(a.x - b.x) < 1e-6
+        kind = "column" if vertical else "beam"
+        counts[kind][e.section_id] = counts[kind].get(e.section_id, 0) + 1
+    dims = {}
+    for kind, by_section in counts.items():
+        if not by_section:
+            return None, None
+        sec = sections.get(max(by_section, key=by_section.get))
+        b, h = getattr(sec, "b", None), getattr(sec, "h", None)
+        if b is None or h is None:
+            return None, None
+        dims[kind] = (round(b * scale, 4), round(h * scale, 4))
+    uniform = all(len(v) == 1 for v in counts.values())
+    return SectionPair(column=dims["column"], beam=dims["beam"]), uniform
+
+
+def verify_deliverables(case: BenchmarkCase, root: Path = REPO_ROOT) -> Dict[str, bool]:
+    """Each requested file must exist at its path under ``root`` (the run's workspace) and be readable (DXF
+    entities, or a CAE model matching the fixture)."""
+    found: Dict[str, bool] = {}
+    for f in case.deliverables.files:
+        path = root / f.path
+        ok = False
+        if path.exists() and path.stat().st_size > 0:
+            try:
+                if f.kind == "dxf":
+                    import ezdxf
+
+                    ok = len(ezdxf.readfile(str(path)).modelspace()) > 0
+                else:
+                    from struct_link import read_project
+
+                    exported = read_project(path).model
+                    fixture = read_project(REPO_ROOT / case.spec.cae.file).model
+                    ok = (len(exported.nodes), len(exported.elements), len(exported.supports)) == (
+                        len(fixture.nodes), len(fixture.elements), len(fixture.supports))
+            except Exception:
+                ok = False
+        found[f.path] = ok
+    return found
+
+
+def reference_load_totals(oracle: OracleVerifier, case: BenchmarkCase,
+                          sections: Optional[SectionPair]) -> Optional[Dict[str, float]]:
+    """Dead, live, and partition resultants of the oracle's model with the same sections, and the horizontal force
+    of each ELF seismic case (spec units)."""
+    if case.spec.cae is not None or case.spec.loads is None:
+        return None
+    used = oracle.sections_for(case, sections)
+    if used is None:
+        return None
+    project = oracle.build_project(case, used)
+    return {**gravity_load_totals(project, case.spec.units), **lateral_load_totals(project, case.spec.units)}
+
+
+def _compact(value: Any, depth: int = 0) -> Any:
+    """Short JSON-safe copy of tool arguments or results for the run log (long values are truncated)."""
+    if isinstance(value, (bool, int, float)) or value is None:
+        return value
+    if isinstance(value, str):
+        return value if len(value) <= 200 else value[:200] + "..."
+    if depth >= 4:
+        return f"<{type(value).__name__}>"
+    if isinstance(value, dict):
+        return {str(k): _compact(v, depth + 1) for k, v in list(value.items())[:40]}
+    if isinstance(value, (list, tuple)):
+        items = [_compact(v, depth + 1) for v in list(value)[:20]]
+        return items + ([f"... {len(value) - 20} more"] if len(value) > 20 else [])
+    return f"<{type(value).__name__}>"
+
+
+def _log_llm_calls(runner: AgentRunner) -> List[Dict[str, Any]]:
+    """Token usage and finish reason of each LLM response of the run (the run log keeps them)."""
+    calls: List[Dict[str, Any]] = []
+    generate = runner.provider.generate
+
+    def logged(*args: Any, **kwargs: Any) -> Any:
+        resp = generate(*args, **kwargs)
+        usage = resp.usage or {}
+        calls.append({"prompt_tokens": usage.get("prompt_tokens"), "completion_tokens": usage.get("completion_tokens"),
+                      "finish_reason": resp.finish_reason, "tool_calls": len(resp.tool_calls),
+                      "tools_offered": bool(kwargs.get("tools"))})
+        if resp.finish_reason == "length":
+            calls[-1]["reasoning_tail"] = reasoning_tail(resp.reasoning)
+        return resp
+
+    runner.provider.generate = logged
+    return calls
+
+
+# A response cut off after this many generated tokens ran away, whatever cut it: qwen3.5:9b's 64k Ollama window
+# ends its thinking before the output cap. A shorter cut is the context window's (a 16k window cut qwen's answers).
+RUNAWAY_TOKENS = 32000
+
+
+def runaway_response(call: Dict[str, Any], max_tokens: Optional[int]) -> bool:
+    """Whether a response was cut off (finish_reason 'length') while generating without end: at the output-token
+    cap (``--max-output-tokens``), or at the context window after ``RUNAWAY_TOKENS`` or more."""
+    if call.get("finish_reason") != "length":
+        return False
+    limit = min(0.95 * max_tokens if max_tokens else math.inf, RUNAWAY_TOKENS)
+    return (call.get("completion_tokens") or 0) >= limit
+
+
+def context_limits(llm_calls: List[Dict[str, Any]], max_tokens: Optional[int] = None) -> Dict[str, Any]:
+    """Signs that the model's context window, not the model, ended or degraded the run.
+
+    A response cut off at the token limit (finish_reason 'length') without a tool call ends the run with
+    whatever text it holds (often none). A runaway (``runaway_response``: at the output-token cap, or after
+    ``RUNAWAY_TOKENS`` or more) is the model's failure, generating (mostly thinking) without end; a shorter
+    cut is the context window's. The conversation only grows, so a prompt shorter than the previous
+    one was truncated by the server (Ollama keeps the last tokens of an over-long prompt, dropping the system
+    prompt, the tools and the task). Only prompts with the same tool offer are compared: the tool-free report
+    turn after an exhausted turn budget omits the tool schemas (about 9k tokens) and is legitimately shorter.
+    """
+    calls = [c for c in llm_calls if c.get("prompt_tokens")]
+    prompts = [c["prompt_tokens"] for c in calls]
+    last = llm_calls[-1] if llm_calls else {}
+    ended = last.get("finish_reason") == "length" and not last.get("tool_calls")
+    return {
+        "max_prompt_tokens": max(prompts, default=None),
+        "max_completion_tokens": max((c.get("completion_tokens") or 0 for c in llm_calls), default=None),
+        "truncated_responses": sum(1 for c in llm_calls if c.get("finish_reason") == "length"),
+        "output_cap_hits": sum(1 for c in llm_calls if runaway_response(c, max_tokens)),
+        "prompt_truncations": sum(1 for a, b in zip(calls, calls[1:])
+                                  if b["prompt_tokens"] < a["prompt_tokens"]
+                                  and b.get("tools_offered", True) == a.get("tools_offered", True)),
+        "final_response_truncated": ended and not runaway_response(last, max_tokens),
+        "final_response_capped": ended and runaway_response(last, max_tokens),
+    }
+
+
+SETUP_FAILURES = ("provider_error", "context_limit")  # failure modes caused by the setup, not the model
+
+
+def llm_server_reachable(api_base: str) -> bool:
+    """Whether the OpenAI-compatible server answers at all (any HTTP status counts as an answer)."""
+    try:
+        urllib.request.urlopen(f"{api_base.rstrip('/')}/models", timeout=30).close()
+    except urllib.error.HTTPError:
+        return True
+    except Exception:
+        return False
+    return True
+
+
+QUOTA_ERROR = re.compile(r"status 429|usage limit|rate limit|quota", re.IGNORECASE)
+MAX_CONSECUTIVE_PROVIDER_ERRORS = 3
+
+
+def provider_stop_reason(recent: List[Dict[str, Any]], api_base: str) -> Optional[str]:
+    """Why the campaign cannot go on: every further run would fail at once, measuring no model behavior.
+
+    An Ollama crash ended C03 and refused C06; the Ollama cloud free-usage limit (HTTP 429) failed nemotron's
+    last 19 ablated runs within seconds each. ``recent`` are the campaign's runs so far, latest last.
+    """
+    if not recent[-1].get("provider_error"):
+        return None
+    if any(QUOTA_ERROR.search(e) for e in recent[-1].get("error_messages", []) if e.startswith("LLM Provider error")):
+        return "the LLM provider reports a usage or rate limit"
+    if not llm_server_reachable(api_base):
+        return f"the LLM server at {api_base} is not reachable"
+    tail = recent[-MAX_CONSECUTIVE_PROVIDER_ERRORS:]
+    if len(tail) == MAX_CONSECUTIVE_PROVIDER_ERRORS and all(r.get("provider_error") for r in tail):
+        return f"the last {MAX_CONSECUTIVE_PROVIDER_ERRORS} runs failed with LLM provider errors"
+    return None
+
+
+# The agent's first request (system prompt and tool schemas) is about 12k tokens; a run adds the tool results of up
+# to 30 turns, and a reasoning model's thinking must fit in the same window
+MIN_CONTEXT_TOKENS = 65536
+
+
+def check_ollama_context(api_base: str, model: str, min_tokens: int) -> None:
+    """Refuse to start when the local Ollama server would run the model with a smaller context window.
+
+    Ollama's OpenAI-compatible endpoint takes the context length from the server (OLLAMA_CONTEXT_LENGTH or a
+    VRAM-based default) and cuts over-long prompts and responses silently; a 16k window ended 103 of 135
+    qwen3.5:9b runs with an empty message.
+    """
+    if not min_tokens:
+        return
+    root = api_base[: -len("/v1")] if api_base.endswith("/v1") else api_base
+    try:
+        chat_completion(api_base, "ollama", model, [{"role": "user", "content": "OK"}], 0.0, None, 600.0)  # loads it
+        with urllib.request.urlopen(f"{root}/api/ps", timeout=30) as resp:
+            loaded = json.loads(resp.read().decode("utf-8")).get("models", [])
+    except Exception as exc:
+        print(f"Context check skipped ({type(exc).__name__}: {exc})")
+        return
+    ctx = next((m.get("context_length") for m in loaded if m.get("name") == model or m.get("model") == model), None)
+    if ctx is None:  # cloud models are not loaded locally
+        print(f"Context check skipped: {model} is not loaded on the local server.")
+        return
+    print(f"Ollama context window for {model}: {ctx} tokens")
+    if ctx < min_tokens:
+        sys.exit(f"The Ollama server runs {model} with a {ctx}-token context; agent runs need at least {min_tokens} "
+                 f"(prompts and responses beyond it are cut silently). Restart Ollama with "
+                 f"OLLAMA_CONTEXT_LENGTH={min_tokens} (or larger), or pass --min-context to override.")
+
+
+FILE_OUTPUT_TOOLS = ("generate_drawings", "export_to_sap2000", "export_to_etabs")  # each writes its output_path
+
+
+FIXTURES_DIR = BENCHMARKS_DIR / "fixtures"
+
+
+def make_workspace(case: BenchmarkCase) -> Path:
+    """A fresh working directory for one run, in which the prompt's repository-relative paths resolve: a copy of
+    the input fixtures and the deliverables' folders. Concurrent campaigns then neither overwrite nor score each
+    other's deliverables, and an agent that exports over an input fixture spoils only its own copy."""
+    root = Path(tempfile.mkdtemp(prefix=f"bench_{case.id[:3]}_")).resolve()
+    shutil.copytree(FIXTURES_DIR, root / FIXTURES_DIR.relative_to(REPO_ROOT))
+    for f in case.deliverables.files:
+        (root / f.path).parent.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def keep_outputs(case: BenchmarkCase, written: List[str], workspace: Path, dest: Path,
+                 preexisting: Optional[set] = None) -> List[str]:
+    """Move a run's files out of its workspace into ``dest``: the case's deliverables, and the files the agent
+    wrote besides them (drawings or exports it was not asked for, e.g. qwen's 'structural_design.dxf'). A path
+    that existed before the agent wrote it (``preexisting``: an input fixture it exported over, or a file outside
+    the workspace) stays where it is. Returns the moved undeclared paths as written."""
+    def move(path: Path) -> None:
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(path), str(dest / path.name))
+
+    declared = {(workspace / f.path).resolve() for f in case.deliverables.files}
+    for path in declared:
+        if path.is_file():
+            move(path)
+    moved = []
+    for p in dict.fromkeys(written):
+        path = (Path(p) if Path(p).is_absolute() else workspace / p).resolve()
+        if path in declared or path in (preexisting or set()) or not path.is_file():
+            continue
+        move(path)
+        moved.append(p)
+    return moved
+
+
+def run_agent(case: BenchmarkCase, oracle: OracleVerifier, *, config: str, model: str, provider: str, api_base: str,
+              api_key: str, max_turns: int, timeout: float, temperature: float, seed: Optional[int],
+              artifact_dir: Optional[Path] = None, max_tokens: Optional[int] = None,
+              reasoning_effort: Optional[str] = None) -> Dict[str, Any]:
+    custom = ""
+    if config == "ablated":
+        custom = ("IMPORTANT RESTRICTION FOR THIS RUN: perform a single linear pass through the workflow. Do not "
+                  "enter an optimization or reflection loop and do not resize members after running design checks.")
+    runner = AgentRunner(provider=provider, model=model, base_url=api_base, api_key=api_key or "ollama",
+                         custom_instructions=custom, max_turns=max_turns, temperature=temperature, seed=seed,
+                         timeout=timeout, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+                         **RUNNER_SETTINGS[config])
+    llm_calls = _log_llm_calls(runner)
+
+    t0 = time.perf_counter()
+    tools_called: List[str] = []
+    succeeded: set = set()
+    tool_args: List[Tuple[str, Dict[str, Any]]] = []  # successful calls, full arguments
+    pending_args: List[Tuple[str, Dict[str, Any]]] = []
+    tool_failures: List[Dict[str, Any]] = []
+    tool_log: List[Dict[str, Any]] = []
+    written: List[str] = []  # files saved by FILE_OUTPUT_TOOLS
+    preexisting: set = set()  # their paths that existed before the call (overwritten repository files)
+    stages: List[str] = []
+    history: List[float] = []
+    errors: List[str] = []
+    final_message = ""
+    turn_limit_reached = False
+    checks = DesignCheckTracker()  # did the last design check use an analysis of the delivered model?
+    attachments = [str(REPO_ROOT / case.spec.plan_image)] if case.spec.plan_image else None
+    cwd = os.getcwd()
+    workspace = make_workspace(case)
+    os.chdir(workspace)  # prompt file paths are repository-relative
+    try:
+        for event in runner.run_stream(case.prompt, attachments=attachments):
+            if isinstance(event, ToolCallEvent):
+                tools_called.append(event.tool_name)
+                pending_args.append((event.tool_name, dict(event.arguments or {})))
+                tool_log.append({"tool": event.tool_name, "args": _compact(dict(event.arguments or {}))})
+                target = (event.arguments or {}).get("output_path") if event.tool_name in FILE_OUTPUT_TOOLS else None
+                if target and Path(str(target)).resolve().is_file():
+                    preexisting.add(Path(str(target)).resolve())
+                print(f"  -> {event.tool_name}")
+            elif isinstance(event, ToolResultEvent):
+                entry = next((t for t in reversed(tool_log) if t["tool"] == event.tool_name and "ok" not in t), None)
+                if entry is not None:
+                    entry["ok"] = event.ok
+                    entry["result"] = event.error_message if not event.ok else _compact(
+                        {k: v for k, v in (event.data or {}).items() if k != "project"})
+                call = next((c for c in reversed(pending_args) if c[0] == event.tool_name), None)
+                if call is not None:
+                    pending_args.remove(call)
+                checks.record(event.tool_name, runner.project, event.ok)
+                if not event.ok:
+                    tool_failures.append({"tool": event.tool_name, "error": event.error_message})
+                    continue
+                if call is not None:
+                    tool_args.append(call)
+                succeeded.add(event.tool_name)
+                if event.tool_name in FILE_OUTPUT_TOOLS and (event.data or {}).get("output_path"):
+                    written.append(str(Path(str(event.data["output_path"])).resolve()))
+                if event.tool_name == "run_design" and event.data.get("governing_dcr") is not None:
+                    history.append(float(event.data["governing_dcr"]))
+            elif isinstance(event, StateUpdateEvent) and event.stage not in stages:
+                stages.append(event.stage)
+            elif isinstance(event, ErrorEvent):
+                errors.append(event.message)
+            elif isinstance(event, CompleteEvent):
+                final_message = event.final_message
+                turn_limit_reached = event.turn_limit_reached
+    except Exception as exc:
+        errors.append(f"{type(exc).__name__}: {exc}")
+    finally:
+        os.chdir(cwd)
+    elapsed = time.perf_counter() - t0
+
+    project = runner.project
+    n_nodes = len(project.model.nodes) if project is not None and project.model is not None else 0
+    n_elems = len(project.model.elements) if project is not None and project.model is not None else 0
+
+    mandatory =[t for t in case.evaluation.expected_tools if t not in NON_MANDATORY_EXPECTED_TOOLS]
+    missing = [t for t in mandatory if t not in succeeded]
+    if n_nodes and succeeded & MODEL_CREATION_TOOLS:
+        missing = [t for t in missing if t not in MODEL_CREATION_TOOLS]
+    deliverables = verify_deliverables(case, workspace) if case.deliverables.files else None
+    success = bool(n_nodes and n_elems and not missing and (deliverables is None or all(deliverables.values())))
+
+    # Design and check cases are verified with the agent's own final sections; analysis cases use the prescribed ones
+    sections, uniform = agent_sections(case, project) if case.deliverables.design != "none" else (None, None)
+    claims = parse_numerical_claims_from_text(final_message, case.spec.units)
+    res = oracle.evaluate(case.id, sections, claims)
+    psfr = (evaluate_prompt_to_schema_fidelity(project, case, tool_args, reference_load_totals(oracle, case, sections))
+            if n_nodes else (False, {"error": "no model"}))
+
+    record = build_record(
+        case, config=config, model=model, temperature=temperature, seed=seed, oracle=res, success=success,
+        elapsed=elapsed, final_message=final_message, tools_called=tools_called, tool_failures=tool_failures,
+        missing_expected_tools=missing, dcr_history=history, final_stage=runner.state.stage.value,
+        stages_visited=stages, turns_used=len(runner.messages) // 2, nodes_count=n_nodes, elements_count=n_elems,
+        psfr=psfr, deliverables=deliverables, uniform_sections=uniform,
+        error_messages=errors + ([f"Oracle: {res.solution.error}"] if res.solution.error else []),
+        final_design_verified=checks.design_current(project) if case.deliverables.design != "none" else None,
+    )
+    record["agent_concrete_volume"] = calculate_concrete_volume(project) if project is not None else None
+    record["turn_limit_reached"] = turn_limit_reached
+    record["max_output_tokens"] = max_tokens
+    record["reasoning_effort"] = reasoning_effort
+    record.update(context_limits(llm_calls, max_tokens))
+    record["provider_error"] = any(e.startswith("LLM Provider error") for e in errors)
+    record["llm_calls"] = llm_calls
+    record["repeated_calls"] = runner.repeated_calls
+    record["rejected_tool_calls"] = runner.rejected_tool_calls
+    record["tool_log"] = tool_log
+    record["final_message"] = final_message
+    declared = {(workspace / f.path).resolve() for f in case.deliverables.files}
+    record["overwritten_files"] = sorted(str(p.relative_to(workspace)) if p.is_relative_to(workspace) else str(p)
+                                         for p in preexisting if p not in declared)
+    record["undeclared_outputs"] = []
+    if artifact_dir is not None:  # otherwise the workspace and its files stay
+        dest = artifact_dir / f"{case.id}_seed{seed}"
+        record["undeclared_outputs"] = [str(Path(p).relative_to(workspace)) if Path(p).is_relative_to(workspace)
+                                        else p for p in keep_outputs(case, written, workspace, dest, preexisting)]
+        record["output_dir"] = str(dest) if dest.is_dir() else None
+        shutil.rmtree(workspace, ignore_errors=True)
+    record["failure_mode"] = classify_failure(record)
+    print(f"--> [{config}] success={success} DCR={record['final_dcr']} compliant={record['code_compliant']} "
+          f"PSFR={psfr[0]} CHR={record['calculation_hallucination_rate_pct']}% ({elapsed:.1f}s)")
+    return record
+
+
+# =============================================================================
+# Aggregation
+# =============================================================================
+def _pct(num: int, den: int) -> Optional[float]:
+    return round(100.0 * num / den, 1) if den else None
+
+
+def summarize(results: List[Dict[str, Any]], *, model: str, config: str, temperature: float, seeds: int,
+              not_applicable_cases: Optional[List[str]] = None) -> Dict[str, Any]:
+    agentic = config in ("full_agent", "ablated")
+    # Runs ended by the setup (LLM server, context window) measure no model behavior: the rates leave them out
+    # (they are counted, and --resume re-runs them)
+    all_results = results
+    results = [r for r in all_results if r.get("failure_mode") not in SETUP_FAILURES]
+    scored = [r for r in results if r["success"] is not None]
+    design = [r for r in results if r["design_required"]]
+    claims = sum(r["claims_made_count"] for r in results)
+    reflection = [r for r in results if r.get("reference_initial_dcr") is not None]
+    converged = [r for r in reflection if r["iterations_to_converge"] is not None]
+    probes = [r for r in results if r["behavior_passed"] is not None]
+    etas = [r["material_economy_ratio"] for r in results if r["material_economy_ratio"] is not None]
+    psfr = [r for r in results if r["prompt_to_schema_fidelity_passed"] is not None] if agentic else []
+    failure_modes: Dict[str, int] = {}
+    for r in all_results:
+        if r["failure_mode"]:
+            failure_modes[r["failure_mode"]] = failure_modes.get(r["failure_mode"], 0) + 1
+
+    per_case: Dict[str, Dict[str, Any]] = {}
+    for cid in dict.fromkeys(r["case_id"] for r in results):
+        runs = [r for r in results if r["case_id"] == cid]
+        ccr_vals = [1.0 if r["code_compliant"] else 0.0 for r in runs if r["design_required"]]
+        per_case[cid] = {
+            "runs": len(runs),
+            "tcr_pct": _pct(sum(1 for r in runs if r["success"]), sum(1 for r in runs if r["success"] is not None)),
+            "ccr_mean": round(mean(ccr_vals), 3) if ccr_vals else None,
+            "ccr_std": round(pstdev(ccr_vals), 3) if len(ccr_vals) > 1 else None,
+            "chr_mean": round(mean(r["calculation_hallucination_rate_pct"] for r in runs), 1),
+            "runtime_mean": round(mean(r["wall_clock_time_sec"] for r in runs), 2),
+        }
+
+    return {
+        "model": model,
+        "configuration": config,
+        "timestamp": datetime.now().isoformat(),
+        "temperature": temperature,
+        "seeds": seeds,
+        "total_runs": len(all_results),
+        "setup_failed_runs": len(all_results) - len(results),
+        "unique_cases": len(per_case),
+        "not_applicable_cases": list(not_applicable_cases or []),
+        "task_completion_rate_pct": _pct(sum(1 for r in scored if r["success"]), len(scored)),
+        "design_runs": len(design),
+        "compliant_runs": sum(1 for r in design if r["code_compliant"]),
+        "code_compliance_rate_pct": _pct(sum(1 for r in design if r["code_compliant"]), len(design)),
+        "calculation_hallucination_rate_pct": _pct(sum(r["hallucinated_claims_count"] for r in results), claims) or 0.0,
+        "claim_completeness_rate_pct": (
+            None if config == "heuristic" else
+            _pct(claims, sum(len(r["expected_oracle_metrics"]) for r in results))
+        ),
+        "prompt_to_schema_fidelity_rate_pct": _pct(sum(1 for r in psfr if r["prompt_to_schema_fidelity_passed"]), len(psfr)),
+        "probe_behavior_rate_pct": _pct(sum(1 for r in probes if r["behavior_passed"]), len(probes)),
+        "reflection_runs": len(reflection),
+        "converged_reflection_runs": len(converged),
+        "avg_convergence_iterations": round(mean(r["iterations_to_converge"] for r in converged), 2) if converged else None,
+        "avg_material_economy_ratio": round(mean(etas), 3) if etas else None,
+        "avg_runtime_sec": round(mean(r["wall_clock_time_sec"] for r in results), 2) if results else None,
+        "failure_modes_summary": failure_modes,
+        "context_limited_runs": sum(1 for r in all_results if r.get("failure_mode") == "context_limit"),
+        "provider_error_runs": sum(1 for r in all_results if r.get("failure_mode") == "provider_error"),
+        "runaway_generation_runs": sum(1 for r in all_results if r.get("failure_mode") == "runaway_generation"),
+        "per_case": per_case,
+        "case_results": all_results,
+    }
+
+
+def select_cases(cases: List[BenchmarkCase], spec: str) -> List[BenchmarkCase]:
+    if spec.lower() == "all":
+        return cases
+    groups = {c.group.lower() for c in cases}
+    if spec.lower() in groups:
+        return [c for c in cases if c.group.lower() == spec.lower()]
+    wanted = [s.strip().lower() for s in spec.split(",") if s.strip()]
+    return [c for c in cases if any(c.id.lower() == w or c.id.lower().startswith(w) for w in wanted)]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Structural engineering agent benchmark harness")
+    parser.add_argument("--model", default="gemini-3.8-flash")
+    parser.add_argument("--provider", default="auto", help="ollama, native, gemini, ...")
+    parser.add_argument("--api-base", default="", help="OpenAI-compatible endpoint (e.g. http://localhost:11434/v1)")
+    parser.add_argument("--api-key", default="")
+    parser.add_argument("--cases", default="all", help="'all', a group (A_2D, B_3D, C_Multimodal, D_Robustness), or IDs/prefixes")
+    parser.add_argument("--config", default="full_agent", choices=["full_agent", "ablated", "direct_llm", "code_gen", "heuristic"])
+    parser.add_argument("--max-turns", type=int, default=30,
+                        help="LLM turns per agent run (same budget for full_agent and ablated)")
+    parser.add_argument("--timeout", type=float, default=1800.0,
+                        help="Seconds per LLM request: a backstop for a stalled server, longer than the output cap "
+                             "takes to generate (128k tokens: ~20 min at 110 tok/s). qwen3.5:9b on a local GPU "
+                             "(~15 tok/s, its 64k window ending a runaway) needs --timeout 5400")
+    parser.add_argument("--max-output-tokens", type=int, default=131072,
+                        help="Most tokens (thinking included) one LLM response may generate; a response that "
+                             "reaches it ends the run as the model's failure ('runaway_generation'). 0: no cap")
+    parser.add_argument("--reasoning-effort", default="high",
+                        help="reasoning_effort sent with every request ('low', 'medium', 'high'; 'none' sends none). "
+                             "gemma4 thinks only when it is set; qwen3.5 and minimax think regardless")
+    parser.add_argument("--temperature", type=float, default=None, help="Default: 0.2 when seeds > 1, else 0.0")
+    parser.add_argument("--seeds", type=int, default=None, help="Default: 5 for agents, 1 otherwise")
+    parser.add_argument("--output-dir", default="")
+    parser.add_argument("--update-file", default="",
+                        help="Existing results JSON to update in place (runs with the same case and seed are replaced)")
+    parser.add_argument("--no-vision", action="store_true",
+                        help="The model takes no image input: the drawing cases are not run and are recorded as "
+                             "not applicable")
+    parser.add_argument("--resume", action="store_true",
+                        help="With --update-file: run only the case/seed pairs the file lacks or that failed because "
+                             "of the setup (provider_error, context_limit)")
+    parser.add_argument("--min-context", type=int, default=MIN_CONTEXT_TOKENS,
+                        help="Smallest Ollama context window (tokens) an agent run may start with; 0 skips the check")
     args = parser.parse_args()
+    if args.resume and not args.update_file:
+        sys.exit("--resume continues an existing results file: pass it with --update-file.")
+    if args.no_vision and args.config == "heuristic":
+        sys.exit("--no-vision applies to LLM configurations; the heuristic reads no drawings.")
 
-    benchmarks_dir = Path(__file__).resolve().parent
-    repo_root = benchmarks_dir.parents[1]
-
-    # Automatically load GEMINI_API_KEY or other keys from struct_agent/.env or workspace .env
-    for env_file in [repo_root / "struct_agent" / ".env", repo_root / ".env"]:
+    for env_file in (REPO_ROOT / "struct_agent" / ".env", REPO_ROOT / ".env"):
         if env_file.exists():
-            with open(env_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        k, v = k.strip(), v.strip().strip('"').strip("'")
-                        if k and k not in os.environ:
-                            os.environ[k] = v
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
-    cases_file = Path(args.cases_file) if args.cases_file else benchmarks_dir / "benchmark_cases.json"
-    output_dir = Path(args.output_dir) if args.output_dir else benchmarks_dir / "results"
+    cases = select_cases(load_cases(), args.cases)
+    # A drawing case without image input is a different task, not a failure: it is excluded from every rate
+    not_applicable = [c.id for c in cases if args.no_vision and c.spec.plan_image]
+    cases = [c for c in cases if c.id not in not_applicable]
+    if not_applicable:
+        print(f"Not applicable without image input: {', '.join(not_applicable)}")
+    if not cases:
+        sys.exit(f"No benchmark cases to run: {args.cases}")
+    output_dir = Path(args.output_dir) if args.output_dir else BENCHMARKS_DIR / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if not cases_file.exists():
-        print(f"Error: Benchmark cases file not found at: {cases_file}")
-        sys.exit(1)
-
-    all_cases = load_benchmark_cases(cases_file)
-
-    # Filter cases
-    selected_cases = []
-    if args.cases.lower() == "all":
-        selected_cases = all_cases
-    elif args.cases.lower().startswith("group_"):
-        target_group = args.cases.lower()
-        selected_cases = [c for c in all_cases if c.get("group", "").lower() == target_group]
-    else:
-        req_ids = [x.strip() for x in args.cases.split(",")]
-        selected_cases = [
-            c for c in all_cases
-            if any(c["id"] == rid or c["id"].lower().startswith(rid.lower()) for rid in req_ids)
-        ]
-
-    if not selected_cases:
-        print(f"Warning: No benchmark cases matched filter: {args.cases}")
-        sys.exit(1)
-
-    # Configure endpoint
-    api_base = args.api_base
-    provider = args.provider
+    api_base, provider = args.api_base, args.provider
     if not api_base:
         if "gemini" in args.model.lower() or provider == "gemini":
-            api_base = "https://generativelanguage.googleapis.com/v1beta/openai"
-            provider = "gemini"
+            api_base, provider = "https://generativelanguage.googleapis.com/v1beta/openai", "gemini"
         else:
-            api_base = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-            if not api_base.endswith("/v1"):
-                api_base = f"{api_base.rstrip('/')}/v1"
-            if provider == "auto":
-                provider = "native"
+            api_base = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+            api_base = api_base if api_base.endswith("/v1") else f"{api_base}/v1"
+            provider = "native" if provider == "auto" else provider
+    api_key = args.api_key or os.environ.get("GEMINI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "ollama")
 
-    api_key = (
-        args.api_key
-        or os.environ.get("GEMINI_API_KEY", "")
-        or os.environ.get("OPENAI_API_KEY", "ollama")
-    )
+    agentic = args.config in ("full_agent", "ablated")
+    effort = None if args.reasoning_effort.lower() in ("none", "") else args.reasoning_effort
+    seeds = 1 if args.config == "heuristic" else (args.seeds or (5 if agentic else 1))
+    temperature = args.temperature if args.temperature is not None else (0.2 if seeds > 1 else 0.0)
+    model_name = "deterministic_heuristic" if args.config == "heuristic" else args.model
+    print(f"\n{'=' * 80}\n BENCHMARK: {len(cases)} cases | {args.config} | {model_name} | seeds={seeds} | T={temperature}\n{'=' * 80}")
 
-    print("\n" + "=" * 80)
-    print(" STRUCTURAL ENGINEERING AGENT: 24-CASE BENCHMARK SUITE EXECUTION")
-    print("=" * 80)
-    print(f" Model:         {args.model}")
-    print(f" Provider:      {provider}")
-    print(f" API Base:      {api_base}")
-    print(f" Configuration: {args.config}")
-    if args.config == "heuristic":
-        seeds_count = 1
-    elif args.seeds is None:
-        seeds_count = 5 if args.config in ("full_agent", "ablated") else 1
-    else:
-        seeds_count = max(args.seeds, 1)
+    if args.config != "heuristic" and provider != "gemini" and "11434" in api_base:
+        check_ollama_context(api_base, args.model, min_tokens=args.min_context)
 
-    run_temperature = (
-        args.temperature
-        if args.temperature is not None
-        else (0.2 if seeds_count > 1 else 0.0)
-    )
-
-    print(f" Temperature:   {run_temperature}")
-    print(f" Total Cases:   {len(selected_cases)}")
-    print(f" Timestamp:     {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 80)
-
-    results = []
-    case_results_mean_std: Dict[str, Any] = {}
-
-    for case in selected_cases:
-        seed_runs = []
-        for s_idx in range(seeds_count):
-            current_seed = 42 + s_idx
-            if seeds_count > 1:
-                print(f"\n--- [Seed {s_idx + 1}/{seeds_count} (seed={current_seed}, temp={run_temperature})] Executing case {case['id']} ---")
-            case_res = run_single_case(
-                case=case,
-                model=args.model,
-                provider=provider,
-                api_base=api_base,
-                api_key=api_key,
-                config=args.config,
-                max_turns=args.max_turns,
-                repo_root=repo_root,
-                timeout=args.timeout,
-                temperature=run_temperature,
-                seed=current_seed,
-            )
-            case_res["seed_index"] = s_idx
-            case_res["random_seed"] = current_seed
-            seed_runs.append(case_res)
-            results.append(case_res)
-
-        if seeds_count > 1:
-            import numpy as np
-            tcrs = [1.0 if r["success"] else 0.0 for r in seed_runs]
-            ccrs = [1.0 if r.get("code_compliant") is True else 0.0 for r in seed_runs if r.get("code_compliant") is not None]
-            chrs = [r.get("calculation_hallucination_rate_pct", 0.0) for r in seed_runs]
-            runtimes = [r["wall_clock_time_sec"] for r in seed_runs]
-            etas = [r["material_economy_ratio"] for r in seed_runs if r.get("material_economy_ratio") is not None]
-
-            case_results_mean_std[case["id"]] = {
-                "tcr_mean": round(float(np.mean(tcrs)) * 100.0, 1),
-                "tcr_std": round(float(np.std(tcrs)) * 100.0, 1),
-                "ccr_mean": round(float(np.mean(ccrs)) * 100.0, 1) if ccrs else None,
-                "ccr_std": round(float(np.std(ccrs)) * 100.0, 1) if ccrs else None,
-                "chr_mean": round(float(np.mean(chrs)), 1),
-                "chr_std": round(float(np.std(chrs)), 1),
-                "runtime_mean": round(float(np.mean(runtimes)), 2),
-                "runtime_std": round(float(np.std(runtimes)), 2),
-                "material_economy_mean": round(float(np.mean(etas)), 3) if etas else None,
-                "material_economy_std": round(float(np.std(etas)), 3) if etas else None,
-            }
-
-    out_file = None
     if args.update_file:
-        update_path = Path(args.update_file)
-        if not update_path.exists():
-            print(f"Error: Update file does not exist: {update_path}")
-            sys.exit(1)
-        with open(update_path, "r", encoding="utf-8") as f:
-            existing_data = json.load(f)
+        out_file = Path(args.update_file)
+        previous = json.loads(out_file.read_text(encoding="utf-8"))
+        seeds_total = max(seeds, previous.get("seeds", 1))
+        not_applicable = sorted(set(not_applicable) | set(previous.get("not_applicable_cases", [])))
+    else:
+        previous, seeds_total = None, seeds
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_file = output_dir / f"results_{sanitize_filename(model_name)}_{args.config}_{stamp}.json"
 
-        existing_cases = existing_data.get("case_results", [])
-        new_cases_map = {r["case_id"]: r for r in results}
+    def write(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Write the results so far (after every run: an interrupted campaign keeps its completed runs)."""
+        if previous is not None:
+            fresh = {(r["case_id"], r["seed_index"]) for r in results}
+            results = [r for r in previous["case_results"] if (r["case_id"], r["seed_index"]) not in fresh] + results
+            results = [r for r in results if r["case_id"] not in not_applicable]
+        summary = summarize(results, model=model_name, config=args.config, temperature=temperature,
+                            seeds=seeds_total, not_applicable_cases=not_applicable)
+        out_file.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+        return summary
 
-        merged_results = []
-        replaced_ids = set()
-        for ec in existing_cases:
-            cid = ec.get("case_id")
-            if cid in new_cases_map:
-                merged_results.append(new_cases_map[cid])
-                replaced_ids.add(cid)
+    # --resume: keep the runs the file already holds, except setup failures (server errors, context limits)
+    done = set()
+    if args.resume:
+        done = {(r["case_id"], r["seed_index"]) for r in previous["case_results"]
+                if r.get("failure_mode") not in SETUP_FAILURES}
+
+    oracle = OracleVerifier()
+    results: List[Dict[str, Any]] = []
+    summary = write(results)
+    for case in cases:
+        for s_idx in range(seeds):
+            if (case.id, s_idx) in done:
+                continue
+            seed = 42 + s_idx
+            print(f"\n[{case.id}] {case.name} (seed {seed})")
+            if args.config == "heuristic":
+                rec = run_heuristic(case, oracle)
+            elif agentic:
+                rec = run_agent(case, oracle, config=args.config, model=args.model, provider=provider, api_base=api_base,
+                                api_key=api_key, max_turns=args.max_turns, timeout=args.timeout,
+                                temperature=temperature, seed=seed, artifact_dir=out_file.with_name(out_file.stem + "_files"),
+                                max_tokens=args.max_output_tokens, reasoning_effort=effort)
             else:
-                merged_results.append(ec)
+                rec = run_single_shot(case, oracle, mode=args.config, model=args.model, api_base=api_base,
+                                      api_key=api_key, temperature=temperature, seed=seed, timeout=args.timeout,
+                                      max_tokens=args.max_output_tokens, reasoning_effort=effort)
+            rec["seed_index"] = s_idx
+            results.append(rec)
+            summary = write(results)
+            stop = provider_stop_reason(results, api_base)
+            if stop:
+                sys.exit(f"\nStopping: {stop}. Completed runs are in {out_file}. When the provider is available "
+                         f"again, continue with the same command plus --update-file \"{out_file}\" --resume.")
 
-        for cid, nr in new_cases_map.items():
-            if cid not in replaced_ids:
-                merged_results.append(nr)
-
-        results = merged_results
-        out_file = update_path
-
-    # Compute aggregate metrics
-    n_total = len(results)
-    n_success = sum(1 for r in results if r["success"])
-    design_cases = [r for r in results if r.get("design_required", False)]
-    n_design_cases = len(design_cases)
-    n_compliant = sum(1 for r in design_cases if r.get("code_compliant") is True)
-    avg_time = round(sum(r["wall_clock_time_sec"] for r in results) / max(n_total, 1), 2)
-    tcr = round((n_success / max(n_total, 1)) * 100, 1)
-    ccr = round((n_compliant / max(n_design_cases, 1)) * 100, 1) if n_design_cases > 0 else None
-
-    # Calculation Hallucination Rate (CHR) across active metrics (measured, not hardcoded)
-    total_claims = sum(r.get("claims_made_count", r.get("numerical_claims_count", 0)) for r in results)
-    total_hallucinations = sum(r.get("hallucinated_claims_count", 0) for r in results)
-    avg_chr = (
-        round((total_hallucinations / max(total_claims, 1)) * 100.0, 1)
-        if total_claims > 0
-        else 0.0
-    )
-    non_heuristic = [r for r in results if r.get("configuration") != "heuristic"]
-    total_expected_metrics = sum(len(r.get("expected_oracle_metrics", r.get("active_oracle_metrics", []))) for r in non_heuristic)
-    total_matched_claims = sum(
-        len(set(r.get("claims_made", [])) & set(r.get("expected_oracle_metrics", r.get("active_oracle_metrics", []))))
-        for r in non_heuristic
-        if not (r.get("configuration") == "code_gen" and not r.get("success") and r.get("claim_completeness_pct", 0.0) == 0.0)
-    )
-    avg_claim_completeness = (
-        round((total_matched_claims / max(total_expected_metrics, 1)) * 100.0, 1)
-        if total_expected_metrics > 0
-        else None
-    )
-
-    failure_modes_summary: Dict[str, int] = {}
-    for r in results:
-        fm = r.get("failure_mode")
-        if fm:
-            failure_modes_summary[fm] = failure_modes_summary.get(fm, 0) + 1
-
-    # Prompt-to-Schema Fidelity Rate (PSFR) for agent configurations
-    psfr_evaluated = [
-        r for r in results
-        if r.get("prompt_to_schema_fidelity_passed") is not None and args.config in ("full_agent", "ablated")
-    ]
-    n_psfr_passed = sum(1 for r in psfr_evaluated if r.get("prompt_to_schema_fidelity_passed") is True)
-    psfr_pct = (
-        round((n_psfr_passed / max(len(psfr_evaluated), 1)) * 100.0, 1)
-        if psfr_evaluated
-        else None
-    )
-
-    # Convergence iterations for self-healing reflection cases
-    reflection_cases = [
-        r for r in results if (r.get("initial_dcr") is not None and r["initial_dcr"] > 1.0)
-    ]
-    n_reflection = len(reflection_cases)
-    converged_reflection = [
-        r for r in reflection_cases if r.get("iterations_to_converge") is not None
-    ]
-    avg_iterations = (
-        round(
-            sum(r["iterations_to_converge"] for r in converged_reflection)
-            / len(converged_reflection),
-            2,
-        )
-        if converged_reflection
-        else None
-    )
-
-    valid_etas = [
-        r["material_economy_ratio"]
-        for r in results
-        if r.get("material_economy_ratio") is not None
-    ]
-    avg_eta = round(sum(valid_etas) / len(valid_etas), 3) if valid_etas else None
-
-    # Per-case averages across seeds
-    by_case_eta: Dict[str, List[float]] = {}
-    by_case_iters: Dict[str, List[float]] = {}
-    for r in results:
-        cid = r.get("case_id", "")
-        if r.get("material_economy_ratio") is not None:
-            by_case_eta.setdefault(cid, []).append(r["material_economy_ratio"])
-        if r.get("iterations_to_converge") is not None:
-            by_case_iters.setdefault(cid, []).append(r["iterations_to_converge"])
-
-    avg_eta_per_case = (
-        round(sum(sum(vals) / len(vals) for vals in by_case_eta.values()) / len(by_case_eta), 3)
-        if by_case_eta else None
-    )
-    avg_iters_per_case = (
-        round(sum(sum(vals) / len(vals) for vals in by_case_iters.values()) / len(by_case_iters), 2)
-        if by_case_iters else None
-    )
-
-    summary = {
-        "model": args.model,
-        "configuration": args.config,
-        "timestamp": datetime.now().isoformat(),
-        "temperature": run_temperature,
-        "seeds": seeds_count,
-        "total_cases": n_total,
-        "total_runs": n_total,
-        "unique_cases": len({r["case_id"] for r in results}),
-        "design_cases": n_design_cases,
-        "design_runs": n_design_cases,
-        "unique_design_cases": len({r["case_id"] for r in results if r.get("design_required")}),
-        "successful_cases": n_success,
-        "compliant_cases": n_compliant,
-        "task_completion_rate_pct": tcr,
-        "code_compliance_rate_pct": ccr,
-        "calculation_hallucination_rate_pct": avg_chr,
-        "claim_completeness_rate_pct": avg_claim_completeness,
-        "failure_modes_summary": failure_modes_summary,
-        "prompt_to_schema_fidelity_rate_pct": psfr_pct,
-        "reflection_cases_count": n_reflection,
-        "converged_reflection_cases_count": len(converged_reflection),
-        "avg_convergence_iterations": avg_iterations,
-        "avg_convergence_iterations_per_case": avg_iters_per_case,
-        "avg_material_economy_ratio": avg_eta,
-        "avg_material_economy_ratio_per_case": avg_eta_per_case,
-        "avg_runtime_sec": avg_time,
-        "case_results": results,
-    }
-    if seeds_count > 1:
-        summary["case_results_mean_std"] = case_results_mean_std
-
-    # Save to unique timestamped JSON if not updating an existing file
-    if out_file is None:
-        safe_model = sanitize_filename(args.model)
-        safe_config = sanitize_filename(args.config)
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_file = output_dir / f"results_{safe_model}_{safe_config}_{timestamp_str}.json"
-        counter = 1
-        while out_file.exists():
-            out_file = output_dir / f"results_{safe_model}_{safe_config}_{timestamp_str}_{counter}.json"
-            counter += 1
-
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2)
-
-    ccr_str = (
-        f"{n_compliant} / {n_design_cases} ({ccr}%)"
-        if n_design_cases > 0
-        else "N/A (no design cases)"
-    )
-
-    print("\n" + "=" * 80)
-    print(" BENCHMARK RUN COMPLETE")
-    print("=" * 80)
-    print(f" Completed (TCR):         {n_success} / {n_total} ({tcr}%)")
-    print(f" Code-Compliant (CCR):    {ccr_str}")
-    print(f" Hallucination Rate (CHR):{avg_chr:.1f}%")
-    if psfr_pct is not None:
-        print(f" Schema Fidelity (PSFR):  {n_psfr_passed} / {len(psfr_evaluated)} ({psfr_pct}%)")
-    if n_reflection > 0:
-        iter_str = (
-            f"Avg {avg_iterations} iters" if avg_iterations is not None else "Did not converge"
-        )
-        print(f" Reflection Convergence:  {len(converged_reflection)} / {n_reflection} ({iter_str})")
-    if avg_eta is not None:
-        print(f" Material Economy (eta):  {avg_eta:.3f} [V_agent / V_baseline]")
-    print(f" Average Runtime:         {avg_time}s / case")
-    print(f" Detailed Log Saved:      {out_file}")
-    print("=" * 80)
+    print(f"\n{'=' * 80}\n RUN COMPLETE")
+    for key in ("task_completion_rate_pct", "code_compliance_rate_pct", "calculation_hallucination_rate_pct",
+                "claim_completeness_rate_pct", "prompt_to_schema_fidelity_rate_pct", "probe_behavior_rate_pct",
+                "avg_convergence_iterations", "avg_material_economy_ratio", "avg_runtime_sec", "context_limited_runs",
+                "provider_error_runs"):
+        print(f"  {key:38s} {summary[key]}")
+    setup_failed = summary["context_limited_runs"] + summary["provider_error_runs"]
+    if setup_failed:
+        print(f"  WARNING: {setup_failed} runs failed because of the setup (failure modes 'context_limit', "
+              f"'provider_error'), not the model; re-run them with --update-file \"{out_file}\" --resume.")
+    print(f"  results -> {out_file}\n{'=' * 80}")
 
 
 if __name__ == "__main__":

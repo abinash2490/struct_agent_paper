@@ -1,918 +1,3333 @@
 [
   {
-    "id": "A01_Portal_Frame_Office",
-    "group": "Group_A_2D",
-    "name": "Single-Bay Portal Frame (Office Gravity)",
-    "prompt": "Create a 2D 1-bay 1-story RC portal frame with a span of 6.0 m and height of 3.5 m with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa, tributary width 4.0 m) and generate factored LRFD load combinations per ASCE 7-22. Deliver beam and column cross-sections that satisfy ACI 318-25 strength requirements (governing DCR <= 1.0), and generate production CAD DXF drawings saved to 'research_paper/drawings/A01_portal_frame.dxf'.",
-    "difficulty": "Easy",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "validate_model",
-      "run_analysis",
-      "run_design",
-      "generate_drawings"
-    ],
-    "target_constraints": {
+    "id": "A01_Portal_Gravity_Design_CAD",
+    "name": "Portal frame gravity design with CAD drawing",
+    "group": "A_2D",
+    "archetype": "P1",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 1,
-      "stories": 1,
-      "drawings_generated": true,
-      "max_dcr": 1.0,
-      "bay_width": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed"
+      "regime": "gravity",
+      "modality": "text",
+      "task": "design"
     },
-    "baseline_concrete_volume_m3": 1.757,
-    "baseline_design": {
-      "governing_dcr": 0.846,
-      "governing_member_id": "B_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 §9.6.1)",
-      "columns": [
-        0.35,
-        0.35
-      ],
-      "beams": [
-        0.3,
-        0.5
+    "difficulty": {
+      "label": "Easy",
+      "score": 3
+    },
+    "prompt": "Design a 2D single-bay, single-story reinforced concrete portal frame with a 6.0 m span, 3.5 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 4.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Generate the CAD drawing as 'research_paper/drawings/A01_portal_frame.dxf'. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          6.0
+        ],
+        "story_heights": [
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "tributary_width": 4.0
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": [
+        {
+          "path": "research_paper/drawings/A01_portal_frame.dxf",
+          "kind": "dxf"
+        }
       ]
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design",
+        "generate_drawings"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.3,
+          0.3
+        ],
+        "beam": [
+          0.25,
+          0.45
+        ]
+      },
+      "metrics": {
+        "total_weight": 153.1144,
+        "max_base_reaction": 151.7727,
+        "governing_dcr": 0.9822
+      },
+      "design": {
+        "governing_dcr": 0.9822,
+        "governing_member_id": "B_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "concrete_volume": 1.305
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.3,
+          0.3
+        ],
+        "beam": [
+          0.25,
+          0.45
+        ]
+      },
+      "concrete_volume": 1.305,
+      "design": {
+        "governing_dcr": 0.9822,
+        "governing_member_id": "B_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "evaluations": 20,
+      "candidates": 2451
     }
   },
   {
-    "id": "A02_Portal_Frame_Storage",
-    "group": "Group_A_2D",
-    "name": "Wide-Span Portal Frame (Storage Loading)",
-    "prompt": "Create a 2D 1-bay 1-story RC frame with an 8.0 m span and 4.0 m column height with fixed base supports. Apply heavy storage gravity loads (superimposed dead 1.5 kPa, live 11.97 kPa, tributary width 4.5 m) and generate factored LRFD load combinations per ASCE 7-22. Deliver beam and column cross-sections that satisfy ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Easy",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "validate_model",
-      "run_analysis",
-      "run_design"
-    ],
-    "target_constraints": {
+    "id": "A02_Frame2D_Gravity_Design",
+    "name": "Three-bay frame gravity design (non-uniform bays)",
+    "group": "A_2D",
+    "archetype": "F2",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 1,
-      "stories": 1,
-      "max_dcr": 1.0,
-      "bay_width": 8.0,
-      "story_height": 4.0,
-      "occupancy": "storage_heavy",
-      "support_type": "fixed"
+      "regime": "gravity",
+      "modality": "text",
+      "task": "design"
     },
-    "baseline_concrete_volume_m3": 3.82,
-    "baseline_design": {
-      "governing_dcr": 0.864,
-      "governing_member_id": "C_2_1",
-      "governing_limit_state": "Column P-M Interaction (ACI 318 §10.5)",
-      "columns": [
-        0.5,
-        0.5
+    "difficulty": {
+      "label": "Easy",
+      "score": 2
+    },
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "tributary_width": 5.0
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design"
       ],
-      "beams": [
-        0.35,
-        0.65
-      ]
+      "required_metrics": [
+        "total_weight",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.35,
+          0.35
+        ],
+        "beam": [
+          0.25,
+          0.45
+        ]
+      },
+      "metrics": {
+        "total_weight": 1393.5096,
+        "max_base_reaction": 1037.7515,
+        "governing_dcr": 0.9986
+      },
+      "design": {
+        "governing_dcr": 0.9986,
+        "governing_member_id": "B_1_3",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "concrete_volume": 10.452
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.35,
+          0.35
+        ],
+        "beam": [
+          0.25,
+          0.45
+        ]
+      },
+      "concrete_volume": 10.452,
+      "design": {
+        "governing_dcr": 0.9986,
+        "governing_member_id": "B_1_3",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "evaluations": 20,
+      "candidates": 2451
     }
   },
   {
-    "id": "A03_2Bay_2Story_Office",
-    "group": "Group_A_2D",
-    "name": "2-Bay 2-Story RC Moment Frame (Office)",
-    "prompt": "Build a 2D 2-bay 2-story RC moment frame with 5.0 m bay widths and 3.2 m story heights with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa, tributary width 5.0 m) and generate factored LRFD load combinations per ASCE 7-22. Deliver beam and column cross-sections that satisfy ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Medium",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "validate_model",
-      "run_analysis",
-      "run_design"
-    ],
-    "target_constraints": {
+    "id": "A03_Frame2D_Modal_Analysis",
+    "name": "Three-bay frame modal analysis",
+    "group": "A_2D",
+    "archetype": "F2",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 2,
-      "stories": 2,
-      "max_dcr": 1.0,
-      "bay_width": 5.0,
-      "story_height": 3.2,
-      "occupancy": "office",
-      "support_type": "fixed"
+      "regime": "modal",
+      "modality": "text",
+      "task": "analyze"
     },
-    "baseline_concrete_volume_m3": 5.772,
-    "baseline_design": {
-      "governing_dcr": 0.599,
-      "governing_member_id": "B_2_2",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 §9.6.1)",
-      "columns": [
-        0.4,
-        0.4
+    "difficulty": {
+      "label": "Easy",
+      "score": 2
+    },
+    "prompt": "Model a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases, using 0.45 m × 0.45 m columns and 0.30 m wide × 0.55 m deep beams. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Run an eigenvalue modal analysis. Use gross-section member stiffness. Report the total dead load W (member self-weight plus floor dead load, kN), the first three periods T1, T2 and T3 (s), and the cumulative X-direction modal mass participation ratio of the first three modes.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "modal",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48,
+        "tributary_width": 5.0
+      }
+    },
+    "deliverables": {
+      "design": "none",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "run_analysis",
+        "inspect_analysis_results"
       ],
-      "beams": [
-        0.3,
-        0.45
-      ]
+      "required_metrics": [
+        "total_weight",
+        "fundamental_period",
+        "period_t2",
+        "period_t3",
+        "modal_mass_ratio"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "metrics": {
+        "total_weight": 1531.9599,
+        "fundamental_period": 0.5185,
+        "period_t2": 0.1629,
+        "period_t3": 0.0932,
+        "modal_mass_ratio": 1.0
+      },
+      "concrete_volume": 16.335
     }
   },
   {
-    "id": "A04_2Bay_3Story_Residential",
-    "group": "Group_A_2D",
-    "name": "2-Bay 3-Story Frame (Residential Gravity)",
-    "prompt": "Model a 2D 2-bay 3-story concrete frame with 6.0 m bay widths and 3.0 m story heights with fixed base supports. Apply residential gravity loads (superimposed dead 1.5 kPa, live 1.92 kPa, tributary width 4.5 m) and generate factored LRFD load combinations per ASCE 7-22. Deliver beam and column cross-sections that satisfy ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Medium",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "validate_model",
-      "run_analysis",
-      "run_design"
-    ],
-    "target_constraints": {
+    "id": "A04_Frame2D_ELF_IMF_Design",
+    "name": "Three-bay frame ELF design (intermediate moment frame, SDC C)",
+    "group": "A_2D",
+    "archetype": "F2",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 2,
-      "stories": 3,
-      "max_dcr": 1.0,
-      "bay_width": 6.0,
-      "story_height": 3.0,
-      "occupancy": "residential",
-      "support_type": "fixed"
+      "regime": "elf",
+      "modality": "text",
+      "task": "design"
     },
-    "baseline_concrete_volume_m3": 9.72,
-    "baseline_design": {
-      "governing_dcr": 0.677,
-      "governing_member_id": "B_1_3",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.4,
-        0.4
+    "difficulty": {
+      "label": "Easy",
+      "score": 3
+    },
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete intermediate moment frame (R = 5, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.45 g, SD1 = 0.18 g and S1 = 0.11 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for intermediate moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48,
+        "tributary_width": 5.0
+      },
+      "seismic": {
+        "procedure": "elf",
+        "sds": 0.45,
+        "sd1": 0.18,
+        "s1": 0.11,
+        "r_factor": 5.0,
+        "importance_factor": 1.0,
+        "system": "rc_imf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": true,
+        "damping_ratio": 0.05
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "apply_lateral_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design"
       ],
-      "beams": [
-        0.3,
-        0.5
-      ]
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.25,
+          0.75
+        ]
+      },
+      "metrics": {
+        "total_weight": 1511.7778,
+        "max_base_reaction": 1106.4075,
+        "base_shear": 144.6468,
+        "governing_dcr": 0.9879
+      },
+      "design": {
+        "governing_dcr": 0.9879,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Joint 6 (x): joint shear (ACI 318-25 §18.4.4.7)"
+      },
+      "concrete_volume": 15.478
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.25,
+          0.75
+        ]
+      },
+      "concrete_volume": 15.478,
+      "design": {
+        "governing_dcr": 0.9879,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Joint 6 (x): joint shear (ACI 318-25 §18.4.4.7)"
+      },
+      "evaluations": 120,
+      "candidates": 2451
     }
   },
   {
-    "id": "A05_2D_Modal_Dynamics",
-    "group": "Group_A_2D",
-    "name": "2D Multi-Story Modal Eigenvalue Analysis",
-    "prompt": "Create a 2D 2-bay 3-story RC frame (6.0 m bays, 3.5 m story heights, columns 0.40m x 0.40m, beams 0.30m x 0.50m) with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa, tributary width 4.5 m) to define story masses (seismic weight = self-weight + superimposed dead), run eigenvalue modal analysis for the first 3 modes, and inspect the fundamental vibration periods (T1, T2, T3) and modal mass participation ratio.",
-    "difficulty": "Medium",
-    "design_required": false,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "run_analysis",
-      "inspect_analysis_results"
-    ],
-    "target_constraints": {
+    "id": "A05_Frame2D_RSA_Code_Design",
+    "name": "Three-bay frame response spectrum design (ASCE 7 spectrum)",
+    "group": "A_2D",
+    "archetype": "F2",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 2,
-      "stories": 3,
-      "analysis_type": "modal",
-      "num_modes": 3,
-      "bay_width": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed"
+      "regime": "rsa",
+      "modality": "text",
+      "task": "design"
     },
-    "baseline_concrete_volume_m3": null
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction with the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "rsa",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48,
+        "tributary_width": 5.0
+      },
+      "seismic": {
+        "procedure": "rsa_code",
+        "sds": 1.0,
+        "sd1": 0.6,
+        "s1": 0.5,
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": true,
+        "damping_ratio": 0.05,
+        "modal_combination": "CQC"
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "validate_model",
+        "run_response_spectrum",
+        "inspect_dynamic_results",
+        "run_design"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "fundamental_period",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-29)",
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.7
+        ]
+      },
+      "metrics": {
+        "total_weight": 1579.6202,
+        "base_shear": 210.9525,
+        "fundamental_period": 0.6239,
+        "governing_dcr": 0.985
+      },
+      "design": {
+        "governing_dcr": 0.985,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Joint 10 (x): strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb) (ACI 318-25 §18.7.3.2)"
+      },
+      "concrete_volume": 18.36
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.7
+        ]
+      },
+      "concrete_volume": 18.36,
+      "design": {
+        "governing_dcr": 0.9863,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Joint 10 (x): strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb) (ACI 318-25 §18.7.3.2)"
+      },
+      "evaluations": 220,
+      "candidates": 2451
+    }
   },
   {
-    "id": "A06_2D_Response_Spectrum_ASCE7",
-    "group": "Group_A_2D",
-    "name": "2D Response Spectrum Analysis (ASCE 7 Design Spectrum)",
-    "prompt": "Create a 2D 2-bay 3-story RC frame (6.0 m spans, 3.5 m stories) with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa, tributary width 4.5 m), execute Response Spectrum Analysis along the X direction with ASCE 7-22 design spectrum parameters (SDS = 1.0g, SD1 = 0.6g, R = 5.0, Ie = 1.0, 5% damping) using CQC modal combination, and generate factored LRFD load combinations per ASCE 7-22. Deliver beam and column cross-sections that satisfy ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "run_response_spectrum",
-      "inspect_dynamic_results",
-      "run_design"
-    ],
-    "target_constraints": {
+    "id": "A06_Frame2D_THA_ElCentro_Analysis",
+    "name": "Three-bay frame linear response history (El Centro, CSV record)",
+    "group": "A_2D",
+    "archetype": "F2",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 2,
-      "stories": 3,
-      "analysis_type": "response_spectrum",
-      "spectrum_type": "asce7",
-      "max_dcr": 1.0,
-      "bay_width": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed",
-      "sds": 1.0,
-      "sd1": 0.6
+      "regime": "tha",
+      "modality": "text",
+      "task": "analyze"
     },
-    "baseline_concrete_volume_m3": 13.309,
-    "baseline_design": {
-      "governing_dcr": 0.88,
-      "governing_member_id": "B_1_2",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 §9.6.1)",
-      "columns": [
-        0.45,
-        0.45
+    "difficulty": {
+      "label": "Easy",
+      "score": 3
+    },
+    "prompt": "Model a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases, using 0.50 m × 0.50 m columns and 0.35 m wide × 0.60 m deep beams. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Run a linear elastic response history analysis in the X direction under the unscaled 1940 El Centro S00E record in 'research_paper/benchmarks/fixtures/ground_motions/ElCentro1940_S00E_Chopra.csv' (columns: time in s, ground acceleration in g), with 5% modal damping and Newmark-beta integration. Use gross-section member stiffness. Report the total dead load W (member self-weight plus floor dead load, kN), the fundamental period T1 (s), the peak base shear Vb (kN), and the peak roof displacement relative to the base (mm).",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "tha",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.35,
+          0.6
+        ]
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48,
+        "tributary_width": 5.0
+      },
+      "seismic": {
+        "procedure": "tha",
+        "importance_factor": 1.0,
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": false,
+        "damping_ratio": 0.05,
+        "ground_motion": {
+          "file": "research_paper/benchmarks/fixtures/ground_motions/ElCentro1940_S00E_Chopra.csv",
+          "event": "1940 Imperial Valley",
+          "station": "El Centro (Chopra, Dynamics of Structures, Appendix 6)",
+          "component": "S00E",
+          "pga_g": 0.319
+        }
+      }
+    },
+    "deliverables": {
+      "design": "none",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "run_time_history",
+        "inspect_dynamic_results"
       ],
-      "beams": [
-        0.35,
-        0.55
-      ]
+      "required_metrics": [
+        "total_weight",
+        "fundamental_period",
+        "base_shear",
+        "peak_roof_displacement"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.35,
+          0.6
+        ]
+      },
+      "metrics": {
+        "total_weight": 1628.8104,
+        "base_shear": 1211.4311,
+        "fundamental_period": 0.432,
+        "peak_roof_displacement": 0.0469
+      },
+      "concrete_volume": 20.45
     }
   },
   {
-    "id": "A07_2D_RSA_Ground_Motion",
-    "group": "Group_A_2D",
-    "name": "2D Dynamic Response Spectrum from Ground Motion Record",
-    "prompt": "Build a 2D 3-bay 4-story RC frame with 5.5 m bays and 3.5 m stories with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa, tributary width 4.5 m), execute Response Spectrum Analysis along the X direction using the 5%-damped response spectrum computed from the 1994 Northridge earthquake ground motion record (Sylmar station, R = 5.0, Ie = 1.0) with CQC modal combination, and generate factored LRFD load combinations per ASCE 7-22. Deliver beam and column cross-sections that satisfy ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "run_response_spectrum",
-      "inspect_dynamic_results",
-      "run_design"
-    ],
-    "target_constraints": {
+    "id": "A07_Portal_Gravity_Reflection_CAD",
+    "name": "Self-healing redesign: overstressed heavy-storage portal frame",
+    "group": "A_2D",
+    "archetype": "P2",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 3,
-      "stories": 4,
-      "analysis_type": "response_spectrum",
-      "ground_motion": "northridge",
-      "max_dcr": 1.0,
-      "bay_width": 5.5,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed"
+      "regime": "gravity",
+      "modality": "text",
+      "task": "reflection"
     },
-    "baseline_concrete_volume_m3": 26.705,
-    "baseline_design": {
-      "governing_dcr": 0.88,
-      "governing_member_id": "B_1_3",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 §9.6.1)",
-      "columns": [
-        0.5,
-        0.5
-      ],
-      "beams": [
-        0.35,
-        0.55
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Design a 2D single-bay, single-story reinforced concrete portal frame with a 7.0 m span, 3.5 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and heavy-storage live load 11.97 kPa (ASCE 7-22 Table 4.3-1) over a 6.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Start from the preliminary trial sections 0.40 m × 0.40 m columns and 0.30 m wide × 0.60 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Generate the CAD drawing as 'research_paper/drawings/A07_portal_frame.dxf'. Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          7.0
+        ],
+        "story_heights": [
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "initial_sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.3,
+          0.6
+        ]
+      },
+      "loads": {
+        "occupancy": "storage_heavy",
+        "superimposed_dead": 5.1,
+        "live": 11.97,
+        "live_basis": "ASCE 7-22 Table 4.3-1 heavy storage 250 psf",
+        "tributary_width": 6.0
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": [
+        {
+          "path": "research_paper/drawings/A07_portal_frame.dxf",
+          "kind": "dxf"
+        }
       ]
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design",
+        "modify_project",
+        "generate_drawings"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.25,
+          0.85
+        ]
+      },
+      "metrics": {
+        "total_weight": 282.572,
+        "max_base_reaction": 571.7352,
+        "governing_dcr": 0.9871
+      },
+      "design": {
+        "governing_dcr": 0.9871,
+        "governing_member_id": "B_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "initial_dcr": 1.311,
+      "concrete_volume": 2.905
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.25,
+          0.85
+        ]
+      },
+      "concrete_volume": 2.905,
+      "design": {
+        "governing_dcr": 0.9871,
+        "governing_member_id": "B_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "evaluations": 200,
+      "candidates": 2394
     }
   },
   {
-    "id": "A08_2D_Overstressed_Portal_Reflection",
-    "group": "Group_A_2D",
-    "name": "Self-Healing Reflection: Overstressed 2D Frame Resizing",
-    "prompt": "Create a 2D 1-bay 1-story frame (span 7.0 m, height 3.5 m, fixed base supports) initialized with preliminary trial sections: columns 0.30m x 0.30m and beams 0.30m x 0.45m. Apply heavy storage gravity loads (superimposed dead 1.5 kPa, live 11.97 kPa, tributary width 6.0 m) and generate factored LRFD load combinations per ASCE 7-22. Deliver final beam and column cross-sections that satisfy ACI 318-25 strength requirements, revising the preliminary trial sizes if necessary so all members satisfy governing DCR <= 1.0, and generate production CAD DXF drawings saved to 'research_paper/drawings/A08_portal_frame.dxf'.",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "run_analysis",
-      "run_design",
-      "modify_project",
-      "generate_drawings"
-    ],
-    "target_constraints": {
+    "id": "A08_Frame2D_RSA_Reflection",
+    "name": "Self-healing redesign under response spectrum demands",
+    "group": "A_2D",
+    "archetype": "F2",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 1,
-      "stories": 1,
-      "requires_reflection": true,
-      "drawings_generated": true,
-      "max_dcr": 1.0,
-      "bay_width": 7.0,
-      "story_height": 3.5,
-      "occupancy": "storage_heavy",
-      "support_type": "fixed"
+      "regime": "rsa",
+      "modality": "text",
+      "task": "reflection"
     },
-    "baseline_concrete_volume_m3": 3.71,
-    "baseline_design": {
-      "governing_dcr": 0.797,
-      "governing_member_id": "C_2_1",
-      "governing_limit_state": "Column P-M Interaction (ACI 318 \u00a710.5)",
-      "columns": [
-        0.5,
-        0.5
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
+    },
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction with the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Start from the preliminary trial sections 0.30 m × 0.30 m columns and 0.25 m wide × 0.40 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "rsa",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "initial_sections": {
+        "column": [
+          0.3,
+          0.3
+        ],
+        "beam": [
+          0.25,
+          0.4
+        ]
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48,
+        "tributary_width": 5.0
+      },
+      "seismic": {
+        "procedure": "rsa_code",
+        "sds": 1.0,
+        "sd1": 0.6,
+        "s1": 0.5,
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": true,
+        "damping_ratio": 0.05,
+        "modal_combination": "CQC"
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "validate_model",
+        "run_response_spectrum",
+        "inspect_dynamic_results",
+        "run_design",
+        "modify_project"
       ],
-      "beams": [
-        0.4,
-        0.7
-      ]
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "fundamental_period",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-29)",
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.7
+        ]
+      },
+      "metrics": {
+        "total_weight": 1579.6202,
+        "base_shear": 210.9525,
+        "fundamental_period": 0.6239,
+        "governing_dcr": 0.985
+      },
+      "design": {
+        "governing_dcr": 0.985,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Joint 10 (x): strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb) (ACI 318-25 §18.7.3.2)"
+      },
+      "initial_dcr": 1.451,
+      "concrete_volume": 18.36
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.7
+        ]
+      },
+      "concrete_volume": 18.36,
+      "design": {
+        "governing_dcr": 0.9863,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Joint 10 (x): strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb) (ACI 318-25 §18.7.3.2)"
+      },
+      "evaluations": 220,
+      "candidates": 2451
     }
   },
   {
-    "id": "B01_3D_2x2_2Story_Gravity",
-    "group": "Group_B_3D",
-    "name": "3D Space Frame (2x2, 2-Story Gravity)",
-    "prompt": "Create a 3D 2-bay by 2-bay 2-story space frame (6.0 m bay widths in X and Y, 3.5 m story heights, columns 0.40m x 0.40m, beams 0.30m x 0.50m) with fixed base supports. Apply residential gravity loads (superimposed dead 1.5 kPa, live 1.92 kPa) distributed across two-way floor panels, assemble factored LRFD load combinations per ASCE 7-22, validate the 3D model, run linear static structural analysis, and inspect support reactions and internal member forces.",
-    "difficulty": "Medium",
-    "design_required": false,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "validate_model",
-      "run_analysis",
-      "inspect_analysis_results"
-    ],
-    "target_constraints": {
+    "id": "B01_Frame3D_Gravity_Analysis",
+    "name": "3D frame gravity analysis (two-way floor distribution)",
+    "group": "B_3D",
+    "archetype": "F3",
+    "taxonomy": {
       "dimension": "3d",
-      "stories": 2,
-      "bays_x": 2,
-      "bays_y": 2,
-      "bay_width": 6.0,
-      "bay_width_x": 6.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.5,
-      "occupancy": "residential",
-      "support_type": "fixed"
+      "regime": "gravity",
+      "modality": "text",
+      "task": "analyze"
     },
-    "baseline_concrete_volume_m3": null
-  },
-  {
-    "id": "B02_3D_3x2_3Story_Gravity",
-    "group": "Group_B_3D",
-    "name": "3D Space Frame (3x2 Bay, 3-Story Commercial Gravity)",
-    "prompt": "Construct a 3D 3-bay by 2-bay 3-story concrete space frame with 5.0 m bays along X, 6.0 m bays along Y, and 3.2 m story heights with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa) distributed across floor slabs, assemble factored LRFD load combinations per ASCE 7-22, and deliver beam and column cross-sections satisfying ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Medium",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "validate_model",
-      "run_analysis",
-      "run_design"
-    ],
-    "target_constraints": {
-      "dimension": "3d",
-      "bays_x": 3,
-      "bays_y": 2,
-      "stories": 3,
+    "difficulty": {
+      "label": "Easy",
+      "score": 2
+    },
+    "prompt": "Model a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases, using 0.45 m × 0.45 m columns and 0.30 m wide × 0.55 m deep beams. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Run a linear static analysis. Use gross-section member stiffness. Report the total dead load W (member self-weight plus floor dead load, kN) and the maximum vertical support reaction under 1.2D + 1.6L (kN).",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions"
+      }
+    },
+    "deliverables": {
+      "design": "none",
       "max_dcr": 1.0,
-      "bay_width": 5.0,
-      "bay_width_x": 5.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.2,
-      "occupancy": "office",
-      "support_type": "fixed"
+      "files": []
     },
-    "baseline_concrete_volume_m3": 65.178,
-    "baseline_design": {
-      "governing_dcr": 0.846,
-      "governing_member_id": "BX_1_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.45,
-        0.45
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "inspect_analysis_results"
       ],
-      "beams": [
-        0.3,
-        0.5
-      ]
+      "required_metrics": [
+        "total_weight",
+        "max_base_reaction"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "metrics": {
+        "total_weight": 4008.369,
+        "max_base_reaction": 1149.6875
+      },
+      "concrete_volume": 69.547
     }
   },
   {
-    "id": "B03_3D_2x2_Seismic_ELF",
-    "group": "Group_B_3D",
-    "name": "3D Space Frame Equivalent Lateral Force Seismic (Near Code Limit)",
-    "prompt": "Build a 3D 2-bay by 2-bay 3-story space frame (bay width 6.0 m in X and Y, story height 3.5 m) with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa) and ASCE 7-22 Equivalent Lateral Force (ELF) seismic loads with SDS = 1.2g, SD1 = 0.5g, and R = 5.0. Generate factored LRFD seismic load combinations per ASCE 7-22, validate the model, and deliver beam and column cross-sections satisfying ACI 318-25 biaxial P-M and shear requirements (governing DCR <= 1.0).",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "apply_lateral_loads",
-      "generate_load_combinations",
-      "validate_model",
-      "run_analysis",
-      "run_design"
-    ],
-    "target_constraints": {
+    "id": "B02_Frame3D_Gravity_Design",
+    "name": "3D frame gravity design",
+    "group": "B_3D",
+    "archetype": "F3",
+    "taxonomy": {
       "dimension": "3d",
-      "stories": 3,
-      "max_dcr": 1.0,
-      "bays_x": 2,
-      "bays_y": 2,
-      "bay_width": 6.0,
-      "bay_width_x": 6.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed",
-      "sds": 1.2,
-      "sd1": 0.5,
-      "r_factor": 5.0
+      "regime": "gravity",
+      "modality": "text",
+      "task": "design"
     },
-    "baseline_concrete_volume_m3": 143.1,
-    "baseline_design": {
-      "governing_dcr": 0.983,
-      "governing_member_id": "BX_1_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.8,
-        0.8
+    "difficulty": {
+      "label": "Easy",
+      "score": 3
+    },
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions"
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design"
       ],
-      "beams": [
-        0.45,
-        0.85
-      ]
+      "required_metrics": [
+        "total_weight",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.35,
+          0.35
+        ],
+        "beam": [
+          0.25,
+          0.35
+        ]
+      },
+      "metrics": {
+        "total_weight": 3286.4917,
+        "max_base_reaction": 1051.4554,
+        "governing_dcr": 0.988
+      },
+      "design": {
+        "governing_dcr": 0.988,
+        "governing_member_id": "C_2_1_3",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      },
+      "concrete_volume": 38.876
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.35,
+          0.35
+        ],
+        "beam": [
+          0.25,
+          0.35
+        ]
+      },
+      "concrete_volume": 38.876,
+      "design": {
+        "governing_dcr": 0.988,
+        "governing_member_id": "C_2_1_3",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      },
+      "evaluations": 20,
+      "candidates": 2451
     }
   },
   {
-    "id": "B04_3D_Modal_Dynamics",
-    "group": "Group_B_3D",
-    "name": "3D Space Frame Modal Eigenvalue Analysis",
-    "prompt": "Create a 3D 2-bay by 2-bay 3-story space frame (6.0 m bays in X and Y, 3.5 m stories, columns 0.45m x 0.45m, beams 0.30m x 0.50m) with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa) to define floor seismic masses (mass = self-weight + superimposed dead), run 3D eigenvalue modal analysis, and inspect the fundamental vibration periods, frequencies, and modal participation factors for the first 3 modes.",
-    "difficulty": "Medium",
-    "design_required": false,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "run_analysis",
-      "inspect_analysis_results"
-    ],
-    "target_constraints": {
+    "id": "B03_Frame3D_Modal_Analysis",
+    "name": "3D frame modal analysis (irregular plan)",
+    "group": "B_3D",
+    "archetype": "F3",
+    "taxonomy": {
       "dimension": "3d",
-      "stories": 3,
-      "analysis_type": "modal",
-      "num_modes": 3,
-      "bays_x": 2,
-      "bays_y": 2,
-      "bay_width": 6.0,
-      "bay_width_x": 6.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed"
+      "regime": "modal",
+      "modality": "text",
+      "task": "analyze"
     },
-    "baseline_concrete_volume_m3": null
-  },
-  {
-    "id": "B05_3D_Response_Spectrum_X",
-    "group": "Group_B_3D",
-    "name": "3D Response Spectrum Analysis (ASCE 7 Spectrum)",
-    "prompt": "Build a 3D 2-bay by 2-bay 3-story space frame (6.0 m bays in X and Y, 3.5 m stories) with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa), execute 3D Response Spectrum Analysis (RSA) along the X direction using ASCE 7-22 design spectrum parameters (SDS = 1.1g, SD1 = 0.55g, R = 5.0, 5% damping) with CQC modal combination, and generate factored LRFD load combinations per ASCE 7-22. Deliver beam and column cross-sections satisfying ACI 318-25 biaxial strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "run_response_spectrum",
-      "inspect_dynamic_results",
-      "run_design"
-    ],
-    "target_constraints": {
-      "dimension": "3d",
-      "stories": 3,
-      "analysis_type": "response_spectrum",
-      "direction": "x",
+    "difficulty": {
+      "label": "Easy",
+      "score": 3
+    },
+    "prompt": "Model a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases, using 0.50 m × 0.50 m columns and 0.35 m wide × 0.60 m deep beams. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Run an eigenvalue modal analysis. Use gross-section member stiffness. Report the total dead load W (member self-weight plus floor dead load, kN), the first three periods T1, T2 and T3 (s), and the cumulative X-direction modal mass participation ratio of the first three modes.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "modal",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.35,
+          0.6
+        ]
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48
+      }
+    },
+    "deliverables": {
+      "design": "none",
       "max_dcr": 1.0,
-      "bays_x": 2,
-      "bays_y": 2,
-      "bay_width": 6.0,
-      "bay_width_x": 6.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed",
-      "sds": 1.1,
-      "sd1": 0.55
+      "files": []
     },
-    "baseline_concrete_volume_m3": 116.64,
-    "baseline_design": {
-      "governing_dcr": 0.866,
-      "governing_member_id": "BX_1_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.8,
-        0.8
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "run_analysis",
+        "inspect_analysis_results"
       ],
-      "beams": [
-        0.4,
-        0.65
-      ]
+      "required_metrics": [
+        "total_weight",
+        "fundamental_period",
+        "period_t2",
+        "period_t3",
+        "modal_mass_ratio"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.35,
+          0.6
+        ]
+      },
+      "metrics": {
+        "total_weight": 4430.7806,
+        "fundamental_period": 0.4267,
+        "period_t2": 0.4139,
+        "period_t3": 0.3663,
+        "modal_mass_ratio": 0.8977
+      },
+      "concrete_volume": 87.495
     }
   },
   {
-    "id": "B06_3D_Response_Spectrum_MultiDir",
-    "group": "Group_B_3D",
-    "name": "3D Space Frame Response Spectrum Analysis (El Centro Spectrum)",
-    "prompt": "Construct a 3D 3-bay by 2-bay 3-story space frame (5.0 m bays in X, 6.0 m bays in Y, 3.2 m story heights) with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa), perform Response Spectrum Analysis along the X direction using the 1940 El Centro response spectrum (R = 5.0, 5% damping) with CQC modal combination, and generate factored LRFD load combinations per ASCE 7-22. Inspect dynamic modal participation and deliver beam and column cross-sections satisfying ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "run_response_spectrum",
-      "inspect_dynamic_results",
-      "run_design"
-    ],
-    "target_constraints": {
+    "id": "B04_Frame3D_ELF_Orthogonal_Design",
+    "name": "3D frame bi-directional ELF design (100%-30% orthogonal)",
+    "group": "B_3D",
+    "archetype": "F3",
+    "taxonomy": {
       "dimension": "3d",
-      "bays_x": 3,
-      "bays_y": 2,
-      "stories": 3,
-      "analysis_type": "response_spectrum",
-      "ground_motion": "elcentro",
-      "max_dcr": 1.0,
-      "bay_width": 5.0,
-      "bay_width_x": 5.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.2,
-      "occupancy": "office",
-      "support_type": "fixed"
+      "regime": "elf",
+      "modality": "text",
+      "task": "design"
     },
-    "baseline_concrete_volume_m3": 82.508,
-    "baseline_design": {
-      "governing_dcr": 0.88,
-      "governing_member_id": "BX_1_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.5,
-        0.5
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads separately in the X and Y directions for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.2 g, SD1 = 0.6 g and S1 = 0.5 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Include the orthogonal combinations 1.0Ex ± 0.3Ey and 0.3Ex ± 1.0Ey (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48
+      },
+      "seismic": {
+        "procedure": "elf",
+        "sds": 1.2,
+        "sd1": 0.6,
+        "s1": 0.5,
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x",
+          "y"
+        ],
+        "orthogonal_combination": true,
+        "vertical_effect": true,
+        "damping_ratio": 0.05
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "apply_lateral_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design"
       ],
-      "beams": [
-        0.35,
-        0.55
-      ]
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.3,
+          0.45
+        ]
+      },
+      "metrics": {
+        "total_weight": 3972.712,
+        "max_base_reaction": 1123.6127,
+        "base_shear": 629.388,
+        "governing_dcr": 0.995
+      },
+      "design": {
+        "governing_dcr": 0.995,
+        "governing_member_id": "C_4_3_1",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      },
+      "concrete_volume": 68.033
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.3,
+          0.45
+        ]
+      },
+      "concrete_volume": 68.033,
+      "design": {
+        "governing_dcr": 0.995,
+        "governing_member_id": "C_4_3_1",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      },
+      "evaluations": 100,
+      "candidates": 2451
     }
   },
   {
-    "id": "B07_3D_HighSeismic_Reflection",
-    "group": "Group_B_3D",
-    "name": "Self-Healing Reflection: 3D High-Seismic Redesign",
-    "prompt": "Create a 3D 2-bay by 2-bay 2-story space frame (6.0 m bays in X and Y, 3.5 m stories) with fixed base supports, initialized with preliminary trial sections: columns 0.25m x 0.25m and beams 0.25m x 0.35m. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa) and ASCE 7-22 seismic ELF lateral loads (SDS = 1.2g, SD1 = 0.5g, R = 5.0), and generate factored LRFD load combinations per ASCE 7-22. Deliver final beam and column cross-sections that satisfy ACI 318-25 strength requirements, revising the preliminary trial sizes if necessary so that governing DCR <= 1.0.",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "apply_lateral_loads",
-      "generate_load_combinations",
-      "run_analysis",
-      "run_design",
-      "modify_project"
-    ],
-    "target_constraints": {
+    "id": "B05_Frame3D_RSA_BiDirectional_Design",
+    "name": "3D frame bi-directional response spectrum design",
+    "group": "B_3D",
+    "archetype": "F3",
+    "taxonomy": {
       "dimension": "3d",
-      "stories": 2,
-      "requires_reflection": true,
-      "max_dcr": 1.0,
-      "bays_x": 2,
-      "bays_y": 2,
-      "bay_width": 6.0,
-      "bay_width_x": 6.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed",
-      "sds": 1.2,
-      "sd1": 0.5,
-      "r_factor": 5.0
+      "regime": "rsa",
+      "modality": "text",
+      "task": "design"
     },
-    "baseline_concrete_volume_m3": 56.857,
-    "baseline_design": {
-      "governing_dcr": 0.97,
-      "governing_member_id": "BX_1_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.65,
-        0.65
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
+    },
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a bi-directional response spectrum analysis, with the X and Y directions combined, using the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Combine the two directions with the 100%-30% rule (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "rsa",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48
+      },
+      "seismic": {
+        "procedure": "rsa_code",
+        "sds": 1.0,
+        "sd1": 0.6,
+        "s1": 0.5,
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x",
+          "y"
+        ],
+        "orthogonal_combination": true,
+        "vertical_effect": true,
+        "damping_ratio": 0.05,
+        "modal_combination": "CQC"
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "validate_model",
+        "run_response_spectrum",
+        "inspect_dynamic_results",
+        "run_design"
       ],
-      "beams": [
-        0.35,
-        0.6
-      ]
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "fundamental_period",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "metrics": {
+        "total_weight": 3876.3322,
+        "base_shear": 512.4414,
+        "fundamental_period": 0.7898,
+        "governing_dcr": 1.0
+      },
+      "design": {
+        "governing_dcr": 1.0,
+        "governing_member_id": "BY_2_1_2",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "concrete_volume": 63.937
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "concrete_volume": 63.937,
+      "design": {
+        "governing_dcr": 1.0,
+        "governing_member_id": "BY_2_1_2",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "evaluations": 80,
+      "candidates": 2451
     }
   },
   {
-    "id": "B08_3D_BiDirectional_Seismic",
-    "group": "Group_B_3D",
-    "name": "3D Space Frame Bi-Directional Orthogonal Seismic Design",
-    "prompt": "Build a 3D 2-bay by 2-bay 3-story space frame (6.0 m bays in X and Y, 3.5 m stories) with fixed base supports subjected to bi-directional seismic demands. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa) and ASCE 7-22 lateral seismic forces (SDS = 1.0g, SD1 = 0.4g, R = 5.0). Generate factored LRFD load combinations under orthogonal ASCE 7-22 directional combinations (1.0 Ex + 0.3 Ey and 0.3 Ex + 1.0 Ey), and deliver beam and column cross-sections satisfying ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "apply_lateral_loads",
-      "generate_load_combinations",
-      "validate_model",
-      "run_analysis",
-      "run_design"
-    ],
-    "target_constraints": {
+    "id": "B06_Frame3D_RSA_Record_Design",
+    "name": "3D frame design from a recorded-motion spectrum (Loma Prieta)",
+    "group": "B_3D",
+    "archetype": "F3",
+    "taxonomy": {
       "dimension": "3d",
-      "stories": 3,
-      "max_dcr": 1.0,
-      "bays_x": 2,
-      "bays_y": 2,
-      "bay_width": 6.0,
-      "bay_width_x": 6.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed",
-      "sds": 1.0,
-      "sd1": 0.4,
-      "r_factor": 5.0
+      "regime": "rsa",
+      "modality": "text",
+      "task": "design"
     },
-    "baseline_concrete_volume_m3": 113.636,
-    "baseline_design": {
-      "governing_dcr": 0.94,
-      "governing_member_id": "BX_1_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.75,
-        0.75
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
+    },
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction using the 5%-damped elastic response spectrum of the 1989 Loma Prieta record (Corralitos station, component 000, PEER NGA RSN 753; accelerations in g) in 'research_paper/benchmarks/fixtures/ground_motions/RSN753_LOMAP_CLS000.AT2', with CQC modal combination and forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and no vertical seismic effect (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "rsa",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48
+      },
+      "seismic": {
+        "procedure": "rsa_record",
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": false,
+        "damping_ratio": 0.05,
+        "modal_combination": "CQC",
+        "ground_motion": {
+          "file": "research_paper/benchmarks/fixtures/ground_motions/RSN753_LOMAP_CLS000.AT2",
+          "event": "1989 Loma Prieta",
+          "station": "Corralitos",
+          "component": "000",
+          "rsn": 753,
+          "pga_g": 0.645
+        }
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "validate_model",
+        "run_response_spectrum",
+        "inspect_dynamic_results",
+        "run_design"
       ],
-      "beams": [
-        0.4,
-        0.7
-      ]
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "fundamental_period",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.3,
+          0.4
+        ]
+      },
+      "metrics": {
+        "total_weight": 3601.4911,
+        "base_shear": 209.7756,
+        "fundamental_period": 0.9724,
+        "governing_dcr": 0.9793
+      },
+      "design": {
+        "governing_dcr": 0.9793,
+        "governing_member_id": "BX_2_1_3",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "concrete_volume": 52.26
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.3,
+          0.4
+        ]
+      },
+      "concrete_volume": 52.26,
+      "design": {
+        "governing_dcr": 0.9793,
+        "governing_member_id": "BX_2_1_3",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "evaluations": 40,
+      "candidates": 2451
     }
   },
   {
-    "id": "C01_Dynamics_ElCentro_TimeHistory",
-    "group": "Group_C_Advanced",
-    "name": "Earthquake Time-History Elastic Demand Check (1940 El Centro)",
-    "prompt": "Create a 2D 2-bay 3-story RC moment frame (6.0 m bays, 3.5 m stories, columns 0.50m x 0.50m, beams 0.35m x 0.55m) with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa, tributary width 5.0 m) to define story masses, and conduct dynamic earthquake time-history analysis under the 1940 El Centro ground motion record (Imperial Valley earthquake, component S00E) along the X direction with 5% modal damping using Newmark-Beta integration. Inspect the elastic dynamic response, reporting peak roof displacement and peak base shear demand.",
-    "difficulty": "Hard",
-    "design_required": false,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "run_time_history",
-      "inspect_dynamic_results"
-    ],
-    "target_constraints": {
+    "id": "B07_Frame3D_THA_ElCentro_Analysis",
+    "name": "3D frame linear response history (El Centro, AT2 record)",
+    "group": "B_3D",
+    "archetype": "F3",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "tha",
+      "modality": "text",
+      "task": "analyze"
+    },
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Model a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases, using 0.50 m × 0.50 m columns and 0.35 m wide × 0.60 m deep beams. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Run a linear elastic response history analysis in the X direction under the unscaled 1940 Imperial Valley record (El Centro Array #9, component 180, PEER NGA RSN 6) in 'research_paper/benchmarks/fixtures/ground_motions/RSN6_IMPVALL.I_I-ELC180.AT2', with 5% modal damping and Newmark-beta integration. Use gross-section member stiffness. Report the total dead load W (member self-weight plus floor dead load, kN), the fundamental period T1 (s), the peak base shear Vb (kN), and the peak roof displacement relative to the base (mm).",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "tha",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.35,
+          0.6
+        ]
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48
+      },
+      "seismic": {
+        "procedure": "tha",
+        "importance_factor": 1.0,
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": false,
+        "damping_ratio": 0.05,
+        "ground_motion": {
+          "file": "research_paper/benchmarks/fixtures/ground_motions/RSN6_IMPVALL.I_I-ELC180.AT2",
+          "event": "1940 Imperial Valley",
+          "station": "El Centro Array #9",
+          "component": "180 (S00E)",
+          "rsn": 6,
+          "pga_g": 0.281
+        }
+      }
+    },
+    "deliverables": {
+      "design": "none",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "run_time_history",
+        "inspect_dynamic_results"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "fundamental_period",
+        "base_shear",
+        "peak_roof_displacement"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.35,
+          0.6
+        ]
+      },
+      "metrics": {
+        "total_weight": 4430.7806,
+        "base_shear": 2532.8583,
+        "fundamental_period": 0.4267,
+        "peak_roof_displacement": 0.0311
+      },
+      "concrete_volume": 87.495
+    }
+  },
+  {
+    "id": "B08_Frame3D_ELF_Reflection",
+    "name": "Self-healing redesign of a 3D frame under ELF seismic loads",
+    "group": "B_3D",
+    "archetype": "F3",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "elf",
+      "modality": "text",
+      "task": "reflection"
+    },
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
+    },
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.2 g, SD1 = 0.6 g and S1 = 0.5 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Start from the preliminary trial sections 0.30 m × 0.30 m columns and 0.25 m wide × 0.40 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "initial_sections": {
+        "column": [
+          0.3,
+          0.3
+        ],
+        "beam": [
+          0.25,
+          0.4
+        ]
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48
+      },
+      "seismic": {
+        "procedure": "elf",
+        "sds": 1.2,
+        "sd1": 0.6,
+        "s1": 0.5,
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": true,
+        "damping_ratio": 0.05
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "apply_lateral_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design",
+        "modify_project"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "metrics": {
+        "total_weight": 3876.3322,
+        "max_base_reaction": 1149.1712,
+        "base_shear": 614.9304,
+        "governing_dcr": 0.998
+      },
+      "design": {
+        "governing_dcr": 0.998,
+        "governing_member_id": "C_4_1_1",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      },
+      "initial_dcr": 2.5376,
+      "concrete_volume": 63.937
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.4,
+          0.4
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "concrete_volume": 63.937,
+      "design": {
+        "governing_dcr": 0.998,
+        "governing_member_id": "C_4_1_1",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      },
+      "evaluations": 80,
+      "candidates": 2451
+    }
+  },
+  {
+    "id": "B09_Frame3D_8Story_RSA_Design",
+    "name": "8-story 3D frame bi-directional response spectrum design",
+    "group": "B_3D",
+    "archetype": "F8",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "rsa",
+      "modality": "text",
+      "task": "design"
+    },
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
+    },
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and eight stories (4.0 m ground story, then seven stories of 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a bi-directional response spectrum analysis, with the X and Y directions combined, using the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Combine the two directions with the 100%-30% rule (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "rsa",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          5.0,
+          6.0,
+          4.5
+        ],
+        "bay_widths_y": [
+          6.0,
+          4.0
+        ],
+        "story_heights": [
+          4.0,
+          3.5,
+          3.5,
+          3.5,
+          3.5,
+          3.5,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48
+      },
+      "seismic": {
+        "procedure": "rsa_code",
+        "sds": 1.0,
+        "sd1": 0.6,
+        "s1": 0.5,
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x",
+          "y"
+        ],
+        "orthogonal_combination": true,
+        "vertical_effect": true,
+        "damping_ratio": 0.05,
+        "modal_combination": "CQC"
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "validate_model",
+        "run_response_spectrum",
+        "inspect_dynamic_results",
+        "run_design"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "fundamental_period",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.3,
+          0.5
+        ]
+      },
+      "metrics": {
+        "total_weight": 10779.362,
+        "base_shear": 641.5252,
+        "fundamental_period": 1.9467,
+        "governing_dcr": 0.999
+      },
+      "design": {
+        "governing_dcr": 0.999,
+        "governing_member_id": "C_3_2_1",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      },
+      "concrete_volume": 189.3
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.5,
+          0.5
+        ],
+        "beam": [
+          0.3,
+          0.5
+        ]
+      },
+      "concrete_volume": 189.3,
+      "design": {
+        "governing_dcr": 0.999,
+        "governing_member_id": "C_3_2_1",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      },
+      "evaluations": 120,
+      "candidates": 2451
+    }
+  },
+  {
+    "id": "C01_SAP2000_Import_Verify_Export",
+    "name": "SAP2000 model import, verification, and conversion to ETABS",
+    "group": "C_Multimodal",
+    "archetype": "FX_CAE",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "fixture",
+      "modality": "cae",
+      "task": "analyze"
+    },
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Import the SAP2000 model 'research_paper/benchmarks/fixtures/exported_seismic_frame.s2k' and validate it. Analyze the load cases defined in the file and run a modal analysis with the file's mass source. Use gross-section member stiffness. Report the total dead load W = DEAD + SuperDead (kN), the base shear of load case EQx (kN), and the first three periods T1, T2 and T3 (s). Then convert the model to ETABS format and save it as 'research_paper/benchmarks/results/C01_converted.e2k'.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "cae",
+      "cae": {
+        "file": "research_paper/benchmarks/fixtures/exported_seismic_frame.s2k",
+        "format": "sap2000",
+        "column_section_id": "Col_300x400",
+        "beam_section_id": "Beam_250x400"
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      }
+    },
+    "deliverables": {
+      "design": "none",
+      "max_dcr": 1.0,
+      "files": [
+        {
+          "path": "research_paper/benchmarks/results/C01_converted.e2k",
+          "kind": "e2k"
+        }
+      ]
+    },
+    "evaluation": {
+      "expected_tools": [
+        "import_from_sap2000",
+        "validate_model",
+        "run_analysis",
+        "inspect_analysis_results",
+        "export_to_etabs"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "fundamental_period",
+        "period_t2",
+        "period_t3"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "CSI SAP2000 / ETABS (struct_link/examples, manually verified)",
+      "metrics": {
+        "total_weight": 988.96,
+        "base_shear": 132.37,
+        "fundamental_period": 0.4577,
+        "period_t2": 0.4167,
+        "period_t3": 0.3874
+      }
+    }
+  },
+  {
+    "id": "C02_ETABS_Import_Design_Check_Export",
+    "name": "ETABS model import, ACI 318 design check, and export to SAP2000",
+    "group": "C_Multimodal",
+    "archetype": "FX_CAE",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "fixture",
+      "modality": "cae",
+      "task": "check"
+    },
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
+    },
+    "prompt": "Import the ETABS model 'research_paper/benchmarks/fixtures/exported_seismic_frame.e2k'. Generate the ASCE 7-22 LRFD load combinations from its load cases (DEAD, SuperDead, LIVE and the seismic case EQx; redundancy factor ρ = 1.0, no vertical seismic effect), run the analysis with cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (§6.6.4), and check the existing column and beam sections and the beam-column joints (Chapter 15) against ACI 318-25 without resizing them. The model defines the concrete (f'c = 30 MPa); the reinforcement has fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Report the total dead load W = DEAD + SuperDead (kN) and the governing DCR with the governing member. Export the checked model to SAP2000 format as 'research_paper/benchmarks/results/C02_checked.s2k'.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "cae",
+      "cae": {
+        "file": "research_paper/benchmarks/fixtures/exported_seismic_frame.e2k",
+        "format": "etabs",
+        "column_section_id": "Col_300x400",
+        "beam_section_id": "Beam_250x400"
+      },
+      "materials": {
+        "fc_mpa": 30.0,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2447.3
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "check",
+      "max_dcr": 1.0,
+      "files": [
+        {
+          "path": "research_paper/benchmarks/results/C02_checked.s2k",
+          "kind": "s2k"
+        }
+      ]
+    },
+    "evaluation": {
+      "expected_tools": [
+        "import_from_etabs",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design",
+        "export_to_sap2000"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "CSI SAP2000 / ETABS (struct_link/examples, manually verified); DCR from oracle_verifier.py (2026-10-28)",
+      "metrics": {
+        "total_weight": 988.96,
+        "governing_dcr": 0.984
+      },
+      "design": {
+        "governing_dcr": 0.984,
+        "governing_member_id": "16",
+        "governing_member_type": "column",
+        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+      }
+    }
+  },
+  {
+    "id": "C03_Vision_School_Model",
+    "name": "Floor plan to analysis model (3-story school, partial grid)",
+    "group": "C_Multimodal",
+    "archetype": "FX_SCHOOL",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "gravity",
+      "modality": "image",
+      "task": "analyze"
+    },
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Interpret the attached architectural floor plan of a three-story school ('research_paper/benchmarks/fixtures/floor_plan_3story_school.PNG'; all stories 3.5 m high, same plan on every floor). Build the 3D reinforced concrete frame with columns only where the plan shows them, 0.45 m × 0.45 m columns, 0.30 m wide × 0.50 m deep beams on every grid line between adjacent columns, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and classroom live load 1.92 kPa (ASCE 7-22 Table 4.3-1) on every floor, distributed by two-way (45°) yield-line distribution, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Run a linear static analysis. Use gross-section member stiffness. Report the total dead load W (member self-weight plus floor dead load, kN) and the maximum vertical support reaction under 1.2D + 1.6L (kN).",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          8.484,
+          4.17,
+          8.484
+        ],
+        "bay_widths_y": [
+          2.6,
+          2.5,
+          4.651
+        ],
+        "story_heights": [
+          3.5,
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "grid_labels_x": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "grid_labels_y": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "omitted_columns": [
+          [
+            "A",
+            "1"
+          ],
+          [
+            "D",
+            "1"
+          ]
+        ]
+      },
+      "plan_image": "research_paper/benchmarks/fixtures/floor_plan_3story_school.PNG",
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.5
+        ]
+      },
+      "loads": {
+        "occupancy": "classroom",
+        "superimposed_dead": 5.1,
+        "live": 1.92,
+        "live_basis": "ASCE 7-22 Table 4.3-1 classrooms 40 psf"
+      }
+    },
+    "deliverables": {
+      "design": "none",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_model_from_plan_draft",
+        "apply_gravity_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "inspect_project"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "max_base_reaction"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.5
+        ]
+      },
+      "metrics": {
+        "total_weight": 4252.8539,
+        "max_base_reaction": 802.5903
+      },
+      "concrete_volume": 75.392
+    }
+  },
+  {
+    "id": "C04_Vision_Hostel_Gravity_Design",
+    "name": "Floor plan to gravity design (2-story hostel, partial grid)",
+    "group": "C_Multimodal",
+    "archetype": "FX_HOSTEL",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "gravity",
+      "modality": "image",
+      "task": "design"
+    },
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
+    },
+    "prompt": "Interpret the attached ground floor plan of a two-story hostel block ('research_paper/benchmarks/fixtures/hostel_block_plan_2story.PNG'; both stories 3.2 m high, same plan on both floors). Build the 3D reinforced concrete frame with columns only where the plan shows them, beams on every grid line between adjacent columns except along the open side of the entrance porch, and fixed column bases. The entrance porch has no floor slab on either floor. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and residential live load 1.92 kPa (ASCE 7-22 Table 4.3-1) on both floors, distributed by two-way (45°) yield-line distribution, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          4.5,
+          2.4,
+          4.0,
+          4.0,
+          4.0,
+          4.0,
+          4.0
+        ],
+        "bay_widths_y": [
+          4.5,
+          6.4
+        ],
+        "story_heights": [
+          3.2,
+          3.2
+        ],
+        "support": "fixed",
+        "grid_labels_x": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G",
+          "H"
+        ],
+        "grid_labels_y": [
+          "1",
+          "2",
+          "3"
+        ],
+        "omitted_columns": [
+          [
+            "C",
+            "1"
+          ]
+        ]
+      },
+      "plan_image": "research_paper/benchmarks/fixtures/hostel_block_plan_2story.PNG",
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "residential",
+        "superimposed_dead": 5.1,
+        "live": 1.92,
+        "live_basis": "ASCE 7-22 Table 4.3-1 residential 40 psf"
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_model_from_plan_draft",
+        "apply_gravity_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.3,
+          0.3
+        ],
+        "beam": [
+          0.25,
+          0.35
+        ]
+      },
+      "metrics": {
+        "total_weight": 3655.4388,
+        "max_base_reaction": 479.9102,
+        "governing_dcr": 0.9964
+      },
+      "design": {
+        "governing_dcr": 0.9964,
+        "governing_member_id": "BEAM_E1_E2_L2",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "concrete_volume": 40.723
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.3,
+          0.3
+        ],
+        "beam": [
+          0.25,
+          0.35
+        ]
+      },
+      "concrete_volume": 40.723,
+      "design": {
+        "governing_dcr": 0.9964,
+        "governing_member_id": "BEAM_E1_E2_L2",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "evaluations": 20,
+      "candidates": 2451
+    }
+  },
+  {
+    "id": "C05_Vision_Mall_ELF_Design",
+    "name": "Floor plan to seismic design (4-story mall, imperial drawing)",
+    "group": "C_Multimodal",
+    "archetype": "FX_MALL",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "elf",
+      "modality": "image",
+      "task": "design"
+    },
+    "difficulty": {
+      "label": "Hard",
+      "score": 6
+    },
+    "prompt": "Interpret the attached floor plan of a four-story commercial building ('research_paper/benchmarks/fixtures/mall_plan_4story.PNG'; dimensions in feet and inches; all stories 3.2 m high, same plan on every floor). Build the 3D reinforced concrete frame in SI units with columns at the grid intersections shown, beams on every grid line between adjacent columns, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and retail live load 4.79 kPa (ASCE 7-22 Table 4.3-1) on every floor, distributed by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight and the floor dead load (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction (along grids 5 to 1) for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.0 g, SD1 = 0.5 g and S1 = 0.4 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          3.6576,
+          3.9624,
+          3.9624,
+          3.3528
+        ],
+        "bay_widths_y": [
+          3.6576,
+          3.6576,
+          3.6576
+        ],
+        "story_heights": [
+          3.2,
+          3.2,
+          3.2,
+          3.2
+        ],
+        "support": "fixed",
+        "grid_labels_x": [
+          "5",
+          "4",
+          "3",
+          "2",
+          "1"
+        ],
+        "grid_labels_y": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "omitted_columns": []
+      },
+      "plan_image": "research_paper/benchmarks/fixtures/mall_plan_4story.PNG",
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "retail_first_floor",
+        "superimposed_dead": 5.1,
+        "live": 4.79,
+        "live_basis": "ASCE 7-22 Table 4.3-1 retail 100 psf"
+      },
+      "seismic": {
+        "procedure": "elf",
+        "sds": 1.0,
+        "sd1": 0.5,
+        "s1": 0.4,
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": true,
+        "damping_ratio": 0.05
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_model_from_plan_draft",
+        "apply_gravity_loads",
+        "apply_lateral_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.35,
+          0.35
+        ],
+        "beam": [
+          0.3,
+          0.4
+        ]
+      },
+      "metrics": {
+        "total_weight": 5376.1875,
+        "max_base_reaction": 951.925,
+        "base_shear": 672.026,
+        "governing_dcr": 0.981
+      },
+      "design": {
+        "governing_dcr": 0.981,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Story 2 (x): design story drift Cd*delta_xe/Ie <= Delta_a (ASCE 7-22 §12.12.1)"
+      },
+      "concrete_volume": 86.37
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.35,
+          0.35
+        ],
+        "beam": [
+          0.3,
+          0.4
+        ]
+      },
+      "concrete_volume": 86.37,
+      "design": {
+        "governing_dcr": 0.981,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Story 2 (x): design story drift Cd*delta_xe/Ie <= Delta_a (ASCE 7-22 §12.12.1)"
+      },
+      "evaluations": 40,
+      "candidates": 2508
+    }
+  },
+  {
+    "id": "C06_Pinned_Base_ELF_Design_CAD",
+    "name": "Pinned-base 3D seismic design to CAD drawings and bar schedule",
+    "group": "C_Multimodal",
+    "archetype": "P3",
+    "taxonomy": {
+      "dimension": "3d",
+      "regime": "elf",
+      "modality": "text",
+      "task": "design"
+    },
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
+    },
+    "prompt": "Design a 3D two-story reinforced concrete moment frame with two 6.0 m bays in X, two 5.0 m bays in Y, story heights of 3.6 m (ground story) and 3.2 m, and pinned column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads separately in the X and Y directions for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.75 g, SD1 = 0.4 g and S1 = 0.3 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Include the orthogonal combinations 1.0Ex ± 0.3Ey and 0.3Ex ± 1.0Ey (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Generate the CAD drawings with reinforcement details and bar bending schedule as 'research_paper/drawings/C06_frame.dxf' and inspect the detailing results. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "3d",
+        "bay_widths_x": [
+          6.0,
+          6.0
+        ],
+        "bay_widths_y": [
+          5.0,
+          5.0
+        ],
+        "story_heights": [
+          3.6,
+          3.2
+        ],
+        "support": "pinned",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.48
+      },
+      "seismic": {
+        "procedure": "elf",
+        "sds": 0.75,
+        "sd1": 0.4,
+        "s1": 0.3,
+        "r_factor": 8.0,
+        "importance_factor": 1.0,
+        "system": "rc_smf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x",
+          "y"
+        ],
+        "orthogonal_combination": true,
+        "vertical_effect": true,
+        "damping_ratio": 0.05
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": [
+        {
+          "path": "research_paper/drawings/C06_frame.dxf",
+          "kind": "dxf"
+        }
+      ]
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "apply_lateral_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design",
+        "generate_drawings",
+        "inspect_detailing_results"
+      ],
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "metrics": {
+        "total_weight": 2028.2944,
+        "max_base_reaction": 834.1235,
+        "base_shear": 201.06,
+        "governing_dcr": 0.9955
+      },
+      "design": {
+        "governing_dcr": 0.9955,
+        "governing_member_id": "BX_1_2_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "concrete_volume": 34.173
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          0.45,
+          0.45
+        ],
+        "beam": [
+          0.3,
+          0.55
+        ]
+      },
+      "concrete_volume": 34.173,
+      "design": {
+        "governing_dcr": 0.9955,
+        "governing_member_id": "BX_1_2_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+      },
+      "evaluations": 120,
+      "candidates": 2451
+    }
+  },
+  {
+    "id": "D01_US_Units_ELF_Design",
+    "name": "ELF design specified in US customary units",
+    "group": "D_Robustness",
+    "archetype": "F2US",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 2,
-      "stories": 3,
-      "earthquake": "elcentro",
-      "bay_width": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed"
+      "regime": "elf",
+      "modality": "text",
+      "task": "design",
+      "probe": "units"
     },
-    "baseline_concrete_volume_m3": null
-  },
-  {
-    "id": "C02_Dynamics_Northridge_TimeHistory",
-    "group": "Group_C_Advanced",
-    "name": "3D Earthquake Time-History Dynamic Integration (1994 Northridge)",
-    "prompt": "Create a 3D 2-bay by 2-bay 2-story space frame (6.0 m bays in X and Y, 3.5 m stories, columns 0.50m x 0.50m, beams 0.35m x 0.55m) with fixed base supports. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa) to establish story masses, and perform direct dynamic time-history numerical integration under the 1994 Northridge ground motion record (Sylmar station, component 360) along the X direction with 5% modal damping. Inspect the roof displacement history and peak base shear demand.",
-    "difficulty": "Hard",
-    "design_required": false,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "run_time_history",
-      "inspect_dynamic_results"
-    ],
-    "target_constraints": {
-      "dimension": "3d",
-      "stories": 2,
-      "earthquake": "northridge",
-      "bays_x": 2,
-      "bays_y": 2,
-      "bay_width": 6.0,
-      "bay_width_x": 6.0,
-      "bay_width_y": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed"
+    "difficulty": {
+      "label": "Hard",
+      "score": 5
     },
-    "baseline_concrete_volume_m3": null
-  },
-  {
-    "id": "C03_CAE_SAP2000_RoundTrip",
-    "group": "Group_C_Advanced",
-    "name": "CSI SAP2000 CAE Round-Trip Interoperability",
-    "prompt": "Ingest the 3D RC seismic frame model from the CSI SAP2000 fixture file 'research_paper/benchmarks/fixtures/exported_seismic_frame.s2k'. Validate the imported framing geometry and boundary conditions, execute structural analysis under gravity and seismic demands, and report: (1) total structural self-weight and total dead load (in kN), (2) ASCE 7-22 lateral seismic base shear under load case 'EQx' (in kN), and (3) the first three natural vibration periods (T1, T2, T3 in seconds). Re-export the verified model back to CSI SAP2000 text format as 'research_paper/benchmarks/results/exported_sap2000.s2k'.",
-    "file_path": "research_paper/benchmarks/fixtures/exported_seismic_frame.s2k",
-    "difficulty": "Medium",
-    "design_required": false,
-    "expected_tools": [
-      "import_from_sap2000",
-      "validate_model",
-      "run_analysis",
-      "inspect_analysis_results",
-      "export_to_sap2000"
-    ],
-    "target_constraints": {
-      "dimension": "3d",
-      "stories": 2,
-      "bays_x": 2,
-      "bays_y": 1,
-      "interoperability": "sap2000",
-      "round_trip": true,
-      "support_type": "fixed"
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 16 ft, 20 ft and 14 ft (left to right), story heights of 14 ft (ground story), 12 ft and 12 ft, and fixed column bases. Work in kip and foot units. Materials: normal-weight concrete with f'c = 4,000 psi and unit weight 150 pcf; reinforcement with fy = 60 ksi. Allowable soil bearing pressure for the isolated footings: 3 ksf (net, under service loads). Gravity loads: floor dead load 105 psf and office live load 65 psf (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 16 ft tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 10 psf partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete intermediate moment frame (R = 5, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.45 g, SD1 = 0.18 g and S1 = 0.11 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 2 in, with columns at least 12 in, beams at least 10 in wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for intermediate moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kip), the X-direction base shear Vb (kip), and the governing DCR.",
+    "spec": {
+      "units": "kip, ft",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          16.0,
+          20.0,
+          14.0
+        ],
+        "story_heights": [
+          14.0,
+          12.0,
+          12.0
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 0.105,
+        "live": 0.065,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "partition_weight": 0.01,
+        "tributary_width": 16.0
+      },
+      "seismic": {
+        "procedure": "elf",
+        "sds": 0.45,
+        "sd1": 0.18,
+        "s1": 0.11,
+        "r_factor": 5.0,
+        "importance_factor": 1.0,
+        "system": "rc_imf",
+        "risk_category": "II",
+        "site_class": "D",
+        "directions": [
+          "x"
+        ],
+        "orthogonal_combination": false,
+        "vertical_effect": true,
+        "damping_ratio": 0.05
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 3.0
+      }
     },
-    "baseline_concrete_volume_m3": null
-  },
-  {
-    "id": "C04_CAE_ETABS_RoundTrip",
-    "group": "Group_C_Advanced",
-    "name": "CSI ETABS CAE Round-Trip Interoperability",
-    "prompt": "Ingest the 3D RC space frame model from the CSI ETABS fixture file 'research_paper/benchmarks/fixtures/exported_seismic_frame.e2k'. Validate the imported framing geometry and boundary conditions, execute structural analysis under gravity and seismic demands, and report: (1) total structural self-weight and total dead load (in kN), (2) ASCE 7-22 lateral seismic base shear under load case 'EQx' (in kN), and (3) the first three natural vibration periods (T1, T2, T3 in seconds). Re-export the verified model back to CSI ETABS text format as 'research_paper/benchmarks/results/exported_etabs.e2k'.",
-    "file_path": "research_paper/benchmarks/fixtures/exported_seismic_frame.e2k",
-    "difficulty": "Medium",
-    "design_required": false,
-    "expected_tools": [
-      "import_from_etabs",
-      "validate_model",
-      "run_analysis",
-      "inspect_analysis_results",
-      "export_to_etabs"
-    ],
-    "target_constraints": {
-      "dimension": "3d",
-      "stories": 2,
-      "bays_x": 2,
-      "bays_y": 1,
-      "interoperability": "etabs",
-      "round_trip": true,
-      "support_type": "fixed"
-    },
-    "baseline_concrete_volume_m3": null
-  },
-  {
-    "id": "C05_Vision_FloorPlan_Draft_Ingestion",
-    "group": "Group_C_Advanced",
-    "name": "Architectural Floor Plan Draft Ingestion (3-Story RC School Building)",
-    "prompt": "Examine the attached architectural floor plan drawing for the 3-story school building ('research_paper/benchmarks/fixtures/floor_plan_3story_school.PNG') with 3.5 m story heights. Extract the structural column layout and framing grid (Grids A, B, C, D and 1, 2, 3, 4), compile the complete 3D structural frame model with fixed base boundary conditions, validate topological connectivity, and inspect the resulting project.",
-    "image_path": "research_paper/benchmarks/fixtures/floor_plan_3story_school.PNG",
-    "difficulty": "Medium",
-    "design_required": false,
-    "expected_tools": [
-      "create_model_from_plan_draft",
-      "validate_model",
-      "inspect_project"
-    ],
-    "target_constraints": {
-      "vision": true,
-      "dimension": "3d",
-      "bays_x": 3,
-      "bays_y": 3,
-      "stories": 3,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed"
-    },
-    "baseline_concrete_volume_m3": null
-  },
-  {
-    "id": "C06_Vision_To_Seismic_Design_Pipeline",
-    "group": "Group_C_Advanced",
-    "name": "Multimodal Floor Plan to Code-Compliant Seismic Design (4-Story Commercial Mall)",
-    "prompt": "Execute the end-to-end multimodal floor-plan-to-seismic design workflow on the attached architectural floor plan for the 4-story commercial mall building ('research_paper/benchmarks/fixtures/mall_plan_4story.PNG'): extract the structural grid lines (Grids 5, 4, 3, 2, 1 along X and A, B, C, D along Y) and 4 story elevations (3.2 m each) into a plan draft, and compile the 3D structural frame. Apply retail gravity loads (superimposed dead 1.5 kPa, live 4.79 kPa) and ASCE 7-22 seismic ELF lateral loads (SDS = 1.2g, SD1 = 0.5g, R = 5.0), generate factored LRFD load combinations per ASCE 7-22, execute 3D finite element analysis, and deliver beam and column cross-sections satisfying ACI 318-25 strength requirements (governing DCR <= 1.0).",
-    "image_path": "research_paper/benchmarks/fixtures/mall_plan_4story.PNG",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_model_from_plan_draft",
-      "apply_gravity_loads",
-      "apply_lateral_loads",
-      "generate_load_combinations",
-      "run_analysis",
-      "run_design"
-    ],
-    "target_constraints": {
-      "vision": true,
-      "dimension": "3d",
-      "bays_x": 4,
-      "bays_y": 3,
-      "stories": 4,
+    "deliverables": {
+      "design": "design",
       "max_dcr": 1.0,
-      "story_height": 3.2,
-      "occupancy": "retail",
-      "support_type": "fixed",
-      "sds": 1.2,
-      "sd1": 0.5,
-      "r_factor": 5.0
+      "files": []
     },
-    "baseline_concrete_volume_m3": 165.728,
-    "baseline_design": {
-      "governing_dcr": 0.88,
-      "governing_member_id": "BX_1_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.55,
-        0.55
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "apply_lateral_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design"
       ],
-      "beams": [
-        0.35,
-        0.55
-      ]
+      "required_metrics": [
+        "total_weight",
+        "base_shear",
+        "governing_dcr"
+      ],
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.15
+    },
+    "reference_solution": {
+      "source": "oracle_verifier.py (2026-10-28)",
+      "sections": {
+        "column": [
+          1.3333,
+          1.3333
+        ],
+        "beam": [
+          0.8333,
+          2.1666
+        ]
+      },
+      "metrics": {
+        "total_weight": 333.0599,
+        "max_base_reaction": 237.5338,
+        "base_shear": 30.386,
+        "governing_dcr": 0.9941
+      },
+      "design": {
+        "governing_dcr": 0.9941,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Joint 6 (x): joint shear (ACI 318-25 §18.4.4.7)"
+      },
+      "concrete_volume": 541.023
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": true,
+      "sections": {
+        "column": [
+          1.3333,
+          1.3333
+        ],
+        "beam": [
+          0.8333,
+          2.1666
+        ]
+      },
+      "concrete_volume": 541.023,
+      "design": {
+        "governing_dcr": 0.9941,
+        "governing_member_type": "frame",
+        "governing_limit_state": "Joint 6 (x): joint shear (ACI 318-25 §18.4.4.7)"
+      },
+      "evaluations": 80,
+      "candidates": 2451
     }
   },
   {
-    "id": "C07_2D_Dynamic_Reflection",
-    "group": "Group_C_Advanced",
-    "name": "Dynamic Self-Healing Reflection: Overstressed Frame Resizing",
-    "prompt": "Construct a 2D 2-bay 3-story moment frame (6.0 m bays, 3.5 m stories) with fixed base supports, initialized with preliminary trial sections: columns 0.30m x 0.30m and beams 0.30m x 0.45m. Apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa, tributary width 5.0 m) and ASCE 7-22 high-seismic lateral loads (SDS = 1.5g, SD1 = 0.75g, R = 5.0), and generate factored LRFD load combinations per ASCE 7-22. Deliver final beam and column cross-sections that satisfy ACI 318-25 strength requirements, revising the preliminary trial sizes if necessary so that all members satisfy governing DCR <= 1.0.",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "apply_lateral_loads",
-      "generate_load_combinations",
-      "run_analysis",
-      "run_design",
-      "modify_project"
-    ],
-    "target_constraints": {
+    "id": "D02_Infeasible_Section_Cap",
+    "name": "Infeasible design under an architectural section limit",
+    "group": "D_Robustness",
+    "archetype": "P2",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 2,
-      "stories": 3,
-      "requires_reflection": true,
-      "max_dcr": 1.0,
-      "bay_width": 6.0,
-      "story_height": 3.5,
-      "occupancy": "office",
-      "support_type": "fixed",
-      "sds": 1.5,
-      "sd1": 0.75,
-      "r_factor": 5.0
+      "regime": "gravity",
+      "modality": "text",
+      "task": "design",
+      "probe": "infeasible"
     },
-    "baseline_concrete_volume_m3": 14.805,
-    "baseline_design": {
-      "governing_dcr": 0.771,
-      "governing_member_id": "C_2_1",
-      "governing_limit_state": "Column P-M Interaction (ACI 318 \u00a710.5)",
-      "columns": [
-        0.5,
-        0.5
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Design a 2D single-bay, single-story reinforced concrete frame with an 8.0 m span, 4.0 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and heavy-storage live load 11.97 kPa (ASCE 7-22 Table 4.3-1) over a 6.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Because of architectural constraints, no column or beam may be wider than 0.30 m or deeper than 0.45 m. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          8.0
+        ],
+        "story_heights": [
+          4.0
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "section_limits": {
+        "max_width": 0.3,
+        "max_depth": 0.45
+      },
+      "loads": {
+        "occupancy": "storage_heavy",
+        "superimposed_dead": 5.1,
+        "live": 11.97,
+        "live_basis": "ASCE 7-22 Table 4.3-1 heavy storage 250 psf",
+        "tributary_width": 6.0
+      },
+      "foundation": {
+        "allowable_bearing_pressure": 150.0
+      }
+    },
+    "deliverables": {
+      "design": "design",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "generate_load_combinations",
+        "validate_model",
+        "run_analysis",
+        "run_design"
       ],
-      "beams": [
-        0.35,
-        0.55
-      ]
+      "required_metrics": [
+        "total_weight",
+        "governing_dcr"
+      ],
+      "expected_behavior": "report_infeasible",
+      "withheld": [],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    },
+    "baseline_design": {
+      "method": "min_volume_grid_search",
+      "feasible": false,
+      "evaluations": 2,
+      "candidates": 2
     }
   },
   {
-    "id": "C08_Full_Pipeline_Autonomous_CAD_Production",
-    "group": "Group_C_Advanced",
-    "name": "Autonomous Seismic Design-to-CAD Production Pipeline",
-    "prompt": "Execute the full autonomous seismic engineering pipeline: build a 2D 2-bay 2-story office frame (5.0 m bays, 3.2 m stories) with fixed base supports, apply office gravity loads (superimposed dead 1.5 kPa, live 3.12 kPa, tributary width 5.0 m), run Response Spectrum Analysis with ASCE 7-22 design spectrum parameters (SDS = 1.0g, SD1 = 0.6g, R = 5.0, 5% damping) along the X direction with CQC modal combination, and generate factored LRFD load combinations per ASCE 7-22. Deliver beam and column cross-sections satisfying ACI 318-25 strength requirements (revising member sizes if necessary so DCR <= 1.0), generate production AutoCAD DXF drawings with rebar schedules saved to 'research_paper/drawings/C08_seismic_frame.dxf', and inspect the detailing results.",
-    "difficulty": "Hard",
-    "design_required": true,
-    "expected_tools": [
-      "create_frame_model",
-      "apply_gravity_loads",
-      "generate_load_combinations",
-      "run_response_spectrum",
-      "run_design",
-      "generate_drawings",
-      "inspect_detailing_results"
-    ],
-    "target_constraints": {
+    "id": "D03_Underspecified_Story_Height",
+    "name": "Underspecified prompt (story heights missing)",
+    "group": "D_Robustness",
+    "archetype": "P4",
+    "taxonomy": {
       "dimension": "2d",
-      "bays": 2,
-      "stories": 2,
-      "drawings_generated": true,
-      "max_dcr": 1.0,
-      "bay_width": 5.0,
-      "story_height": 3.2,
-      "occupancy": "office",
-      "support_type": "fixed",
-      "sds": 1.0,
-      "sd1": 0.6
+      "regime": "gravity",
+      "modality": "text",
+      "task": "design",
+      "probe": "underspecified"
     },
-    "baseline_concrete_volume_m3": 6.072,
-    "baseline_design": {
-      "governing_dcr": 0.846,
-      "governing_member_id": "B_1_1",
-      "governing_limit_state": "Beam Flexure / As,min (ACI 318 \u00a79.6.1)",
-      "columns": [
-        0.4,
-        0.4
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Design a 2D two-bay, two-story reinforced concrete office frame with 5.0 m bays and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          5.0,
+          5.0
+        ],
+        "story_heights": [
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "tributary_width": 5.0
+      }
+    },
+    "deliverables": {
+      "design": "none",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "run_analysis"
       ],
-      "beams": [
-        0.3,
-        0.5
-      ]
+      "required_metrics": [
+        "total_weight"
+      ],
+      "expected_behavior": "declare_assumption",
+      "withheld": [
+        "story_heights"
+      ],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
+    }
+  },
+  {
+    "id": "D04_Contradictory_Geometry",
+    "name": "Contradictory geometry (bay widths vs. total length)",
+    "group": "D_Robustness",
+    "archetype": "P5",
+    "taxonomy": {
+      "dimension": "2d",
+      "regime": "gravity",
+      "modality": "text",
+      "task": "design",
+      "probe": "contradictory"
+    },
+    "difficulty": {
+      "label": "Medium",
+      "score": 4
+    },
+    "prompt": "Design a 2D three-bay, two-story reinforced concrete office frame with three 5.0 m bays giving a total frame length of 18.0 m, 3.5 m story heights and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "spec": {
+      "units": "kN, m",
+      "analysis": "static",
+      "geometry": {
+        "dimension": "2d",
+        "bay_widths_x": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "story_heights": [
+          3.5,
+          3.5
+        ],
+        "support": "fixed",
+        "omitted_columns": []
+      },
+      "materials": {
+        "fc_mpa": 27.6,
+        "fy_mpa": 414.0,
+        "density_kg_m3": 2400.0
+      },
+      "loads": {
+        "occupancy": "office",
+        "superimposed_dead": 5.1,
+        "live": 3.12,
+        "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions",
+        "tributary_width": 5.0
+      }
+    },
+    "deliverables": {
+      "design": "none",
+      "max_dcr": 1.0,
+      "files": []
+    },
+    "evaluation": {
+      "expected_tools": [
+        "create_frame_model",
+        "apply_gravity_loads",
+        "run_analysis"
+      ],
+      "required_metrics": [
+        "total_weight"
+      ],
+      "expected_behavior": "flag_contradiction",
+      "withheld": [
+        "bay_widths_x"
+      ],
+      "claim_tolerance": 0.1,
+      "geometry_tolerance": 0.05
     }
   }
 ]

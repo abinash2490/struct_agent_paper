@@ -17,7 +17,7 @@ from verify_cae_parity import (
 
 def test_cae_parity_metrics_precision():
     metrics = calculate_parity_metrics()
-    assert len(metrics) == 18, f"Expected 18 parity comparison metrics, got {len(metrics)}"
+    assert len(metrics) == 14, f"Expected 14 parity comparison metrics, got {len(metrics)}"
 
     max_diff = 0.0
     for row in metrics:

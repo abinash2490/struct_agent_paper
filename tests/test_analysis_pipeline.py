@@ -20,6 +20,8 @@ from analyze_results import (
 
 def test_load_all_results_live(benchmarks_dir: Path):
     results_dir = benchmarks_dir / "results"
+    if not results_dir.exists() or not list(results_dir.glob("results_*.json")):
+        pytest.skip("No live benchmark results in benchmarks/results")
     summaries = load_all_results(results_dir)
     assert len(summaries) >= 1, "Expected at least 1 benchmark result summary"
 
@@ -30,16 +32,13 @@ def test_load_all_results_live(benchmarks_dir: Path):
         # Ensure code compliance metrics are populated for runs with design cases
         if s.get("design_cases", 0) > 0:
             assert s.get("code_compliance_rate_pct") is not None
-            assert s.get("code_compliance_rate_margin_pct") is not None
-            assert s["code_compliance_rate_margin_pct"] >= s["code_compliance_rate_pct"]
+            assert "code_compliance_rate_margin_pct" not in s
 
 
-def test_margin_ccr_computation_synthetic():
+def test_ccr_uses_only_the_oracle_verdict():
+    """A DCR of 1.015 is not compliant: there is no tolerance band above DCR = 1.0."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-
-        # Create synthetic result with one case at 1.00 (strict compliant)
-        # and one case at 1.01 (margin compliant only)
         synthetic_data = {
             "model": "synthetic_model",
             "configuration": "full_agent",
@@ -47,18 +46,18 @@ def test_margin_ccr_computation_synthetic():
             "task_completion_rate_pct": 100.0,
             "case_results": [
                 {
-                    "case_id": "A01_Portal_Frame_Office",
+                    "case_id": "A01_Portal_Gravity_Design_CAD",
                     "design_required": True,
                     "final_dcr": 1.00,
                     "code_compliant": True,
-                    "concrete_volume_m3": 1.757,
+                    "concrete_volume": 1.757,
                 },
                 {
-                    "case_id": "A02_Portal_Frame_Storage",
+                    "case_id": "A02_Frame2D_Gravity_Design",
                     "design_required": True,
                     "final_dcr": 1.015,
                     "code_compliant": False,
-                    "concrete_volume_m3": 3.820,
+                    "concrete_volume": 3.820,
                 },
             ],
         }
@@ -70,14 +69,49 @@ def test_margin_ccr_computation_synthetic():
         assert len(loaded) == 1
         res = loaded[0]
 
-        assert res["compliant_cases"] == 1  # only A01 is strict
-        assert res["code_compliance_rate_pct"] == 50.0  # 1 / 2 = 50.0%
-        assert res["code_compliance_rate_margin_pct"] == 100.0  # both <= 1.02: 2 / 2 = 100.0%
+        assert res["compliant_cases"] == 1
+        assert res["code_compliance_rate_pct"] == 50.0  # 1 / 2
+        assert "code_compliance_rate_margin_pct" not in res
+
+
+def test_failure_mode_table_lists_every_mode(tmp_path: Path):
+    summary = {"model": "m", "configuration": "full_agent", "case_results": [
+        {"case_id": "D02_Infeasible_Section_Cap", "failure_mode": "probe_behavior"},
+        {"case_id": "A04_Frame2D_ELF_IMF_Design", "failure_mode": "unverified_design"},
+        {"case_id": "D01_US_Units_ELF_Design", "failure_mode": "design_space_violation"},
+    ]}
+    table = print_and_save_failure_mode_table([summary], tmp_path).read_text(encoding="utf-8")
+    row = next(line for line in table.splitlines() if line.startswith("| `m`"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    header = next(line for line in table.splitlines() if line.startswith("| Model Name"))
+    names = [c.strip() for c in header.strip("|").split("|")]
+    counts = dict(zip(names, cells))
+    assert counts["Probe Behavior"] == "1" and counts["Unverified Design"] == "1"
+    assert counts["Design Space Violation"] == "1" and counts["Runtime Error"] == "0"
 
 
 def test_table_generation_functions(benchmarks_dir: Path):
     results_dir = benchmarks_dir / "results"
     summaries = load_all_results(results_dir)
+    if not summaries:
+        summaries = [{
+            "model": "synthetic_model",
+            "configuration": "full_agent",
+            "timestamp": "2026-10-21T12:00:00",
+            "task_completion_rate_pct": 100.0,
+            "case_results": [
+                {
+                    "case_id": "A01_Portal_Gravity_Design_CAD",
+                    "design_required": True,
+                    "final_dcr": 0.95,
+                    "code_compliant": True,
+                    "concrete_volume": 1.757,
+                    "baseline_concrete_volume": 1.757,
+                    "material_economy_ratio": 1.0,
+                    "governing_limit_state": "Beam Flexure",
+                }
+            ],
+        }]
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_results_dir = Path(tmp_dir) / "results"
@@ -87,12 +121,7 @@ def test_table_generation_functions(benchmarks_dir: Path):
         assert summary_file.exists()
         content = summary_file.read_text(encoding="utf-8")
         assert "| Model Name | Config |" in content
-        assert "Compliant (CCR Strict / Margin)" in content
-
-        # Detailed table expects benchmark_cases.json in parent directory
-        cases_file = tmp_results_dir.parent / "benchmark_cases.json"
-        import shutil
-        shutil.copyfile(benchmarks_dir / "benchmark_cases.json", cases_file)
+        assert "Compliant (CCR)" in content and "Turn Limit %" in content and "Probe Behavior" in content
 
         detail_file = print_and_save_detailed_table(summaries, tmp_results_dir)
         assert detail_file is not None and detail_file.exists()
@@ -101,12 +130,15 @@ def test_table_generation_functions(benchmarks_dir: Path):
         assert "eta_vol" in detail_content
 
 
-def test_multiseed_analysis_pipeline_dod(benchmarks_dir: Path):
-    cases_file = benchmarks_dir / "benchmark_cases.json"
-    with open(cases_file, "r", encoding="utf-8") as fp:
-        raw_cases = json.load(fp)
-    case_ids = [c["id"] for c in raw_cases]
-    assert len(case_ids) == 24
+def test_multiseed_analysis_pipeline_dod():
+    from research_paper.benchmarks.case_schema import load_cases
+    from research_paper.benchmarks.run_benchmarks import ccr_eligible
+
+    cases = load_cases()
+    case_ids = [c.id for c in cases]
+    design_ids = {c.id for c in cases if ccr_eligible(c)}
+    reflection_ids = {c.id for c in cases if c.spec.initial_sections is not None}
+    n_cases, n_design = len(case_ids), len(design_ids)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_results_dir = Path(tmp_dir) / "results"
@@ -118,12 +150,8 @@ def test_multiseed_analysis_pipeline_dod(benchmarks_dir: Path):
             all_case_runs = []
             for s_idx in range(5):
                 for cid in case_ids:
-                    is_design = (
-                        "A05" not in cid and "B01" not in cid and "B04" not in cid and
-                        "C01" not in cid and "C02" not in cid and "C03" not in cid and
-                        "C04" not in cid and "C05" not in cid
-                    )
-                    is_reflection = ("A08" in cid or "B07" in cid or "C07" in cid)
+                    is_design = cid in design_ids
+                    is_reflection = cid in reflection_ids
                     dcr_hist = [2.5, 1.4, 0.85 + 0.01 * s_idx] if is_reflection else ([0.85] if is_design else [])
                     all_case_runs.append({
                         "case_id": cid,
@@ -135,7 +163,7 @@ def test_multiseed_analysis_pipeline_dod(benchmarks_dir: Path):
                         "initial_dcr": 2.5 if is_reflection else (0.85 if is_design else None),
                         "dcr_history": dcr_hist,
                         "iterations_to_converge": 2 if is_reflection else (0 if is_design else None),
-                        "concrete_volume_m3": 10.0,
+                        "concrete_volume": 10.0,
                         "material_economy_ratio": 1.02,
                         "claims_made_count": 3,
                         "hallucinated_claims_count": 0,
@@ -151,9 +179,8 @@ def test_multiseed_analysis_pipeline_dod(benchmarks_dir: Path):
                 "configuration": cfg,
                 "timestamp": f"20261021_12000{1 if cfg == 'full_agent' else 0}",
                 "seeds": 5,
-                "total_cases": 120,
-                "total_runs": 120,
-                "unique_cases": 24,
+                "total_runs": 5 * n_cases,
+                "unique_cases": n_cases,
                 "task_completion_rate_pct": 100.0 if cfg == "full_agent" else 60.0,
                 "code_compliance_rate_pct": 100.0 if cfg == "full_agent" else 60.0,
                 "calculation_hallucination_rate_pct": 0.0,
@@ -176,7 +203,7 @@ def test_multiseed_analysis_pipeline_dod(benchmarks_dir: Path):
         assert "Claim Completeness %" in summary_content
         assert "Runs (TCR) / Cases" in summary_content
 
-        # 3. Failure Mode Table (Criterion 4e: sums to <= 24 per column)
+        # 3. Failure Mode Table (sums to <= number of cases per column)
         fail_file = print_and_save_failure_mode_table(summaries, tmp_results_dir)
         assert fail_file.exists()
         fail_content = fail_file.read_text(encoding="utf-8")
@@ -184,15 +211,15 @@ def test_multiseed_analysis_pipeline_dod(benchmarks_dir: Path):
         for line in fail_content.splitlines():
             if line.startswith("| `gemini-3.8-flash`"):
                 parts = [p.strip() for p in line.split("|")[1:-1]]
-                assert int(parts[3]) == 24
-                assert int(parts[4]) <= 24
+                assert int(parts[3]) == n_cases
+                assert int(parts[4]) <= n_cases
 
-        # 4. Statistical Significance Report (Criterion 4c: N Pairs = 24 or 16)
+        # 4. Statistical Significance Report (N pairs = all cases for TCR, CCR-eligible cases for CCR)
         sig_file = compute_statistical_significance(summaries, tmp_results_dir)
         assert sig_file is not None and sig_file.exists()
         sig_content = sig_file.read_text(encoding="utf-8")
-        assert "| Task Completion (TCR) | 24 | 5 |" in sig_content
-        assert "| Code Compliance (CCR) | 16 | 5 |" in sig_content
+        assert f"| Task Completion (TCR) | {n_cases} | 5 |" in sig_content
+        assert f"| Code Compliance (CCR) | {n_design} | 5 |" in sig_content
 
         # 5. Publication Plots (Criterion 4b & 4d: fig_chr_vs_completeness and fig_dcr_convergence)
         saved_plots = generate_plots(summaries, tmp_plots_dir)
@@ -262,21 +289,41 @@ def test_code_gen_mixed_failed_runs_chr_bounds():
     assert 0.0 <= pooled_chr <= 100.0
 
 
-def test_direct_llm_a05_claim_completeness():
-    """Verify that A05 under direct_llm with weight+T1 scores 40.0% completeness (2/5)."""
+def test_direct_llm_modal_claim_completeness():
+    """A modal case answered with only W and T1 scores 40% completeness (2 of 5 requested metrics)."""
     from research_paper.benchmarks.oracle_verifier import OracleVerifier
-    verifier = OracleVerifier()
-    res = verifier.evaluate(
-        "A05_2D_Modal_Dynamics",
-        col_b=0.40,
-        col_h=0.40,
-        beam_b=0.30,
-        beam_h=0.50,
-        claims={"claimed_total_weight_kN": 250.0, "claimed_fundamental_period_s": 0.45},
-    )
-    expected = res.expected_metrics
-    assert len(expected) == 5  # total_weight, T1, T2, T3, MMR
-    assert len(res.claims_made) == 2  # total_weight, T1
-    completeness = round(len(set(res.claims_made) & set(expected)) / len(expected) * 100.0, 1)
-    assert completeness == 40.0
 
+    res = OracleVerifier().evaluate(
+        "A03_Frame2D_Modal_Analysis", None, {"total_weight": 250.0, "fundamental_period": 0.45}
+    )
+    assert res.claims_made == ["total_weight", "fundamental_period"]
+    assert sorted(res.omitted_metrics) == ["modal_mass_ratio", "period_t2", "period_t3"]
+    assert res.claim_completeness_pct == 40.0
+
+
+
+def test_paired_tests_are_exact_for_few_differing_cases():
+    """gemma CCR: 5 of 16 cases compliant only with resizing. The Pratt/normal-approximation Wilcoxon test gave
+    p = 0.025; the exact McNemar test gives 2 * 0.5**5 = 0.0625. Continuous outcomes drop zero differences and use
+    the exact Wilcoxon distribution."""
+    from analyze_results import paired_test
+
+    ccr = paired_test([1.0] * 16, [0.0] * 5 + [1.0] * 11)
+    assert ccr["test"] == "McNemar (exact)" and (ccr["n_full"], ccr["n_ablated"]) == (5, 0)
+    assert ccr["p"] == pytest.approx(0.0625) and ccr["statistic"] == "5 : 0"
+    mixed = paired_test([1.0] * 4 + [0.0] * 2 + [1.0] * 10, [0.0] * 4 + [1.0] * 2 + [1.0] * 10)
+    assert mixed["p"] == pytest.approx(1 - 20 / 64)  # 4 against 2 of 6
+    dcr = paired_test([0.9, 0.95, 0.97, 0.99, 0.98, 1.0], [1.3, 1.45, 2.5, 1.1, 1.2, 1.0])
+    assert dcr["test"] == "Wilcoxon (exact)" and dcr["n_nonzero"] == 5
+    assert dcr["p"] == pytest.approx(2 / 2 ** 5)  # all five differences negative: exact two-sided p
+    assert paired_test([1.0, 0.0, 1.0, 1.0], [1.0, 0.0, 1.0, 1.0])["p"] == 1.0
+
+
+def test_holm_adjustment_is_step_down_and_monotone():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from research_paper.benchmarks.export_result_tables import holm_adjusted
+
+    assert holm_adjusted([0.01, 0.04, 0.03]) == pytest.approx([0.03, 0.06, 0.06])
+    assert holm_adjusted([0.5, 0.9]) == pytest.approx([1.0, 1.0])

@@ -1,162 +1,145 @@
-# Benchmark Execution Commands Matrix (Multi-Model & Baselines)
+# Benchmark Commands
 
-This document contains the complete execution command catalog to reproduce all experiments for the research paper:  
-**"Autonomous Structural Engineering via Neuro-Symbolic Agentic Orchestration"** (*Automation in Construction* / *Advanced Engineering Informatics*).
-
----
-
-## Experimental Setup Overview
-
-### The Evaluated LLM Backbones:
-1. **`gemini-3.8-flash`** — Frontier Cloud Multimodal VLM via Google Gemini API (`GEMINI_API_KEY`)
-2. **`qwen3.5:9b`** — Local Open-Weight Multimodal VLM via Ollama (`http://localhost:11434/v1`)
-3. **`nemotron-3-super:cloud`** — NVIDIA Math/Engineering-Tuned Reasoning Model via Cloud Ollama Host
-4. **`gemma4:31b-cloud`** — Open-Weight High-Capacity Frontier Reasoning Model via Cloud Host
-
-### The 5 Configurations / Baselines:
-* **Baseline 0 (`heuristic`)**: Deterministic classical engineering rules of thumb ($h_c=b_c=0.05H$, $b_b=L/14, h_b=L/12$) with DCR scaling ($\sqrt{\text{DCR}}$); establishes the non-LLM engineering floor.
-* **Proposed Framework (`full_agent`)**: Full neuro-symbolic agent with symbolic tools (`fem2d`/`fem3d`/`structdyn`/`aci318`/`struct_draw`) and closed-loop self-healing reflection.
-* **Baseline 3 (`ablated`)**: Agent equipped with tools, but reflection loop (`modify_project`) is removed and `allow_model_recreation=False` is enforced.
-* **Baseline 1 (`direct_llm`)**: Zero-shot direct prompting without access to symbolic tools (measures baseline calculation hallucination rate $\text{CHR}$).
-* **Baseline 2 (`code_gen`)**: Prompted to generate standalone Python scripts from scratch without `struct_agent` tools.
-
-> **Sampling Temperature & Seed Protocol**: For single-seed baseline runs (`direct_llm`, `code_gen`, `heuristic`), temperature defaults to `0.0`. For multi-seed statistical significance evaluations (`--seeds 5` for `full_agent` and `ablated`), temperature automatically defaults to `0.2` across pseudo-random seeds 42, 43, 44, 45, 46 to generate authentic stochastic exploration and valid Wilcoxon paired test distributions. You can also override explicitly with `--temperature <val>`.
+The commands that produced the results of the paper **"A Neuro-Symbolic Large Language Model Agent for the Analysis,
+Design, and Detailing of Reinforced Concrete Frames: Framework and Oracle-Based Benchmark"**, and the commands that
+score, audit, and analyze them. Run them from the repository root (the folder that holds `research_paper/` and the
+packages).
 
 ---
 
-## Prerequisites
+## Setup
 
-Before running, activate the conda environment:
+### Models
+
+| Model | Host | Notes |
+|---|---|---|
+| `qwen3.5:9b` | local Ollama (`http://localhost:11434/v1`) | add `--timeout 5400` (about 15 tokens/s on the local GPU) |
+| `minimax-m3.1-flash:cloud` | Ollama Cloud | long reasoning: single-shot answers took 43k–130k tokens |
+| `gemma4:31b-cloud` | Ollama Cloud | reasons only when `reasoning_effort` is sent (the harness always sends it) |
+| `deepseek-v4.1-flash:cloud` | Ollama Cloud | |
+
+All four are reasoning models and receive `reasoning_effort="high"` (`--reasoning-effort`, default `high`).
+
+### Configurations
+
+* `heuristic`: no LLM. Square columns b = h = H/20, beams b = 0.30 m and h = max(L/12, ℓ/18.5), within the
+  prompt's minimums and limits, scaled by √DCR after each oracle check that fails (up to 6 checks).
+* `full_agent`: the agent with all tools and the resizing loop.
+* `ablated`: the agent without the resizing loop: `modify_project` is not offered, the system prompt has a report
+  stage instead of the resizing stage (`allow_resizing=False`), and `allow_model_recreation=False` blocks model
+  re-creation and `preliminary_sizing` after a design check.
+* `direct_llm`: one call, answer as JSON, no tools.
+* `code_gen`: one call, a standalone Python script (numpy/scipy) that prints the JSON answer.
+
+### Seed and temperature
+
+The paper uses one run per case and configuration, seed 42.
+
+* **Agent runs need `--temperature 0.2`.** The harness defaults to 0.2 only when `--seeds` is above 1, so a
+  one-seed agent run without the flag runs at 0.0.
+* Single-shot runs use the default temperature 0.0.
+* `--seeds N` runs seeds 42 … 41 + N. A second seed is added to an existing file with
+  `--seeds 2 --temperature 0.2 --update-file <file> --resume` (the seeds already in the file are skipped).
+
+### Environment and server
+
 ```powershell
 conda activate structeng
 ```
 
-For Ollama models, ensure the Ollama service is active:
+For Ollama, the context window must hold at least 65,536 tokens: the agent's first request (system prompt and tool
+schemas) is about 12k tokens, and Ollama's OpenAI-compatible endpoint silently cuts prompts beyond the window. Quit
+the Ollama tray app first, then:
+
 ```powershell
+$env:OLLAMA_CONTEXT_LENGTH = "65536"
+$env:OLLAMA_FLASH_ATTENTION = "1"      # smaller KV cache, so more layers stay on the GPU
+$env:OLLAMA_KV_CACHE_TYPE = "q8_0"
 ollama serve
 ```
 
+`run_benchmarks.py` checks the loaded model's window before an Ollama run and stops below `--min-context` (default
+65536). A run that the window still cuts, or that the server ends with an error, is a setup failure
+(`context_limit`, `provider_error`): re-run it with `--update-file <file> --resume`, which runs only missing and
+setup-failed cases. A response cut at `--max-output-tokens` (default 131072, reasoning included), or by the window
+after 32k or more tokens, is the model's failure (`runaway_generation`) and is not re-run. `--timeout` (default
+1800 s per request) must exceed the time a runaway takes. Each run works in its own temporary workspace, so
+campaigns of different models can run at the same time.
+
 ---
 
-## 0. Deterministic Heuristic Baseline (Non-LLM Floor)
+## Runs
 
 ```powershell
-# [RUN 00] - Classical Engineering Heuristic (Deterministic, 1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --config heuristic --cases all --seeds 1
+$R = "research_paper/benchmarks/run_benchmarks.py"
+
+# Deterministic heuristic (no LLM)
+python $R --config heuristic --cases all
+
+# Each model: the two agent configurations, then the two single-shot baselines
+foreach ($m in "minimax-m3.1-flash:cloud", "gemma4:31b-cloud", "deepseek-v4.1-flash:cloud") {
+    python $R --model $m --config full_agent --cases all --seeds 1 --temperature 0.2
+    python $R --model $m --config ablated    --cases all --seeds 1 --temperature 0.2
+    python $R --model $m --config direct_llm --cases all --seeds 1
+    python $R --model $m --config code_gen   --cases all --seeds 1
+}
+
+# The local model needs the longer timeout
+python $R --model qwen3.5:9b --config full_agent --cases all --seeds 1 --temperature 0.2 --timeout 5400
+python $R --model qwen3.5:9b --config ablated    --cases all --seeds 1 --temperature 0.2 --timeout 5400
+python $R --model qwen3.5:9b --config direct_llm --cases all --seeds 1 --timeout 5400
+python $R --model qwen3.5:9b --config code_gen   --cases all --seeds 1 --timeout 5400
+```
+
+`--cases` takes `all`, a group (`A_2D`, `B_3D`, `C_Multimodal`, `D_Robustness`), or case IDs or prefixes
+(`A05,C03`). The paper's campaigns ran the cases in three chunks (A01–B02, B03–C03, C04–D04), the later chunks
+with `--update-file <file> --resume`; the result is the same file as one `--cases all` run. A run stopped by a usage
+limit of the Ollama plan is continued the same way.
+
+To re-run one case and replace its record in an existing file:
+
+```powershell
+python $R --model gemma4:31b-cloud --config full_agent --cases C03 --seeds 1 --temperature 0.2 `
+  --update-file "research_paper/benchmarks/results/results_gemma4_31b-cloud_full_agent_<TIMESTAMP>.json"
 ```
 
 ---
 
-## 1. Model 1: `gemini-3.8-flash` (Cloud Frontier API)
+## Consistency Audit (after every agent run)
 
-> Note: The runner automatically loads `GEMINI_API_KEY` from `struct_agent/.env`.
-
-```powershell
-# [RUN 01] - Proposed Framework (Full Agent with Reflection, 5 Seeds)
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config full_agent --cases all --seeds 5
-
-# [RUN 02] - Baseline 3: Ablated Agent (Without Reflection Loop, 5 Seeds)
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config ablated --cases all --seeds 5
-
-# [RUN 03] - Baseline 1: Direct Zero-Shot LLM Prompting (1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config direct_llm --cases all --seeds 1
-
-# [RUN 04] - Baseline 2: Code-Generation LLM (1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --model gemini-3.8-flash --config code_gen --cases all --seeds 1
-```
-
----
-
-## 2. Model 2: `qwen3.5:9b` (Local Workstation via Ollama)
+Replays each verified, fidelity-passing design from its tool log (no LLM calls) and flags runs whose final design check disagrees with the oracle (`oracle`), does not replay (`replay`), or used an analysis of an earlier state of the model (`stale`). A flag points to a harness or tool bug, not to an agent mistake. Resolve every flag before reporting. Results produced before a scoring change are re-scored first (`rescore_results.py <file> --replay`, which also recomputes PSFR and the verification of the final design check):
 
 ```powershell
-# [RUN 05] - Proposed Framework (Full Agent with Reflection, 5 Seeds)
-python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --config full_agent --cases all --seeds 5
-
-# [RUN 06] - Baseline 3: Ablated Agent (Without Reflection Loop, 5 Seeds)
-python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --config ablated --cases all --seeds 5
-
-# [RUN 07] - Baseline 1: Direct Zero-Shot LLM Prompting (1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --config direct_llm --cases all --seeds 1
-
-# [RUN 08] - Baseline 2: Code-Generation LLM (1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --config code_gen --cases all --seeds 1
+python "research_paper/benchmarks/rescore_results.py" research_paper/benchmarks/results/results_<model>_<config>_<timestamp>.json --replay
+python "research_paper/benchmarks/audit_results.py" research_paper/benchmarks/results/results_<model>_<config>_<timestamp>.json
 ```
 
----
+## Analysis, Tables, and Figures
 
-## 3. Model 3: `nemotron-3-super:cloud` (Cloud Ollama Host)
-
-> Note: If hosted on a remote server/endpoint, append `--api-base http://<HOST_IP>:11434/v1`.
-
-```powershell
-# [RUN 09] - Proposed Framework (Full Agent with Reflection, 5 Seeds)
-python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-super:cloud --config full_agent --cases all --seeds 5
-
-# [RUN 10] - Baseline 3: Ablated Agent (Without Reflection Loop, 5 Seeds)
-python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-super:cloud --config ablated --cases all --seeds 5
-
-# [RUN 11] - Baseline 1: Direct Zero-Shot LLM Prompting (1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-super:cloud --config direct_llm --cases all --seeds 1
-
-# [RUN 12] - Baseline 2: Code-Generation LLM (1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --model nemotron-3-super:cloud --config code_gen --cases all --seeds 1
-```
-
----
-
-## 4. Model 4: `gemma4:31b-cloud` (Cloud Open-Weight Host)
-
-> Note: If hosted on a remote server/endpoint, append `--api-base http://<HOST_IP>:11434/v1`.
-
-```powershell
-# [RUN 13] - Proposed Framework (Full Agent with Reflection, 5 Seeds)
-python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --config full_agent --cases all --seeds 5
-
-# [RUN 14] - Baseline 3: Ablated Agent (Without Reflection Loop, 5 Seeds)
-python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --config ablated --cases all --seeds 5
-
-# [RUN 15] - Baseline 1: Direct Zero-Shot LLM Prompting (1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --config direct_llm --cases all --seeds 1
-
-# [RUN 16] - Baseline 2: Code-Generation LLM (1 Seed)
-python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --config code_gen --cases all --seeds 1
-```
-
----
-
-## Post-Run: Results Analysis, Statistical Significance & Figure Generation
-
-Once benchmark runs finish (or at any intermediate point), execute the analysis script to aggregate all JSON logs in `results/`, conduct paired Wilcoxon signed-rank tests, compile markdown comparison tables, and generate publication-grade figures:
+`analyze_results.py` aggregates the results files, runs the paired tests (exact McNemar for compliance, exact Wilcoxon signed-rank for the DCR and runtime), prints the summary and failure-mode tables, and writes diagnostic plots to `research_paper/benchmarks/plots/`:
 
 ```powershell
 python "research_paper/benchmarks/analyze_results.py"
 ```
 
-### Outputs Generated:
-1. **Markdown Summary Table**: Printed to console and saved as `research_paper/benchmarks/results/summary_table_<TIMESTAMP>.md`
-2. **Failure-Mode Breakdown Table**: Saved as `research_paper/benchmarks/results/failure_mode_breakdown_<TIMESTAMP>.md`
-3. **Statistical Significance Report**: Paired Wilcoxon signed-rank test output printed to stdout
-4. **Benchmark Comparison Bar Chart**: Saved as `research_paper/benchmarks/plots/fig_benchmark_comparison_<TIMESTAMP>.png`
-5. **Prompt-to-Schema Fidelity Bar Chart**: Saved as `research_paper/benchmarks/plots/fig_prompt_schema_fidelity_<TIMESTAMP>.png`
-6. **DCR Self-Healing Trajectory Curves**: Saved as `research_paper/benchmarks/plots/fig_dcr_convergence_<TIMESTAMP>.png`
-7. **Material Economy Bar Chart**: Saved as `research_paper/benchmarks/plots/fig_material_economy_<TIMESTAMP>.png`
-8. **CHR vs. Claim Completeness Paired Bar Chart**: Saved as `research_paper/benchmarks/plots/fig_chr_vs_completeness_<TIMESTAMP>.png`
-
----
-
-## Re-running a Single Specific Case & In-Place Update
-
-To re-run a specific case (e.g. after debugging a tool or connection) and update an existing timestamped results file:
+The manuscript's tables, figures, and Supplementary Material S1 are written by four scripts:
 
 ```powershell
-# 1. List existing results to find the timestamped file you wish to update:
-ls research_paper/benchmarks/results/
-
-# 2. Re-run the individual case and update the file in-place:
-python "research_paper/benchmarks/run_benchmarks.py" `
-  --model gemini-3.8-flash `
-  --config full_agent `
-  --cases C03 `
-  --update-file "research_paper/benchmarks/results/results_gemini-3.8-flash_full_agent_<TIMESTAMP>.json"
+python "research_paper/benchmarks/export_case_table.py"      # Table 3
+python "research_paper/benchmarks/export_result_tables.py"   # Tables 7-12
+python "research_paper/benchmarks/make_result_figures.py"    # Figures 2-5 (PNG and PDF)
+python "research_paper/benchmarks/export_system_prompts.py"  # Supplementary Material S1 (system prompts)
 ```
+
+They write into `research_paper/manuscript/`, which is not part of this repository.
+
+## Zenodo Archive
+
+The two files of the Zenodo deposit (the run records, and the code of every repository at one git tag) are built by:
+
+```powershell
+python "research_paper/benchmarks/make_zenodo_archive.py" --tag v1.0-paper
+```
+
+It writes `research_paper/zenodo_upload/struct_agent_benchmark_results.zip` and
+`research_paper/zenodo_upload/struct_agent_code_v1.0-paper.zip`, and stops if a repository lacks the tag.

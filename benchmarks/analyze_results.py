@@ -9,6 +9,11 @@ Analyzes JSON logs from `research_paper/benchmarks/results/` and generates:
 All output figures and summary tables are saved with unique timestamped filenames,
 ensuring that no previous results or plots are ever overwritten or replaced.
 
+Statistics: for multi-seed runs, the summary table reports each metric as the mean +- standard deviation of the
+per-seed values (the metric computed over all cases of one seed). Paired tests compare full_agent with ablated
+over cases, using each case's mean over seeds: exact McNemar for binary outcomes, Wilcoxon signed-rank otherwise
+(``paired_test``).
+
 Usage
 -----
 python "research_paper/benchmarks/analyze_results.py"
@@ -17,10 +22,16 @@ python "research_paper/benchmarks/analyze_results.py" --all-runs
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from research_paper.benchmarks.case_schema import cases_by_id  # noqa: E402
 
 
 def get_unique_filepath(directory: Path, base_name: str, ext: str) -> Path:
@@ -58,83 +69,30 @@ def load_all_results(results_dir: Path, include_all_runs: bool = False) -> List[
 
     # Skip legacy _latest.json files; results are loaded exclusively from timestamped source logs
 
-    # Load benchmark baseline concrete volumes for material economy ratio calculation
-    baseline_vols: Dict[str, float] = {}
-    cases_file = results_dir.parent / "benchmark_cases.json"
-    if cases_file.exists():
-        try:
-            with open(cases_file, "r", encoding="utf-8") as fp:
-                bench_data = json.load(fp)
-                case_list = bench_data if isinstance(bench_data, list) else bench_data.get("benchmark_cases", [])
-                for bc in case_list:
-                    if bc.get("baseline_concrete_volume_m3"):
-                        baseline_vols[bc["id"]] = bc["baseline_concrete_volume_m3"]
-        except Exception:
-            pass
+    # Runs ended by the setup (LLM server, context window) measure no model behavior: every table and test
+    # leaves them out (re-run them with run_benchmarks.py --update-file <file> --resume)
+    from research_paper.benchmarks.run_benchmarks import SETUP_FAILURES, summarize
 
-    # Normalize results and compute strict CCR (<=1.0) and margin CCR (<=1.02)
+    for i, r in enumerate(all_runs):
+        valid = [c for c in r.get("case_results", []) if c.get("failure_mode") not in SETUP_FAILURES]
+        if len(valid) < len(r.get("case_results", [])):
+            print(f"WARNING: {r['_filename']}: {len(r['case_results']) - len(valid)} runs failed because of the setup "
+                  f"(provider error or context limit) and are left out; re-run them with --resume.")
+            fixed = summarize(valid, model=r["model"], config=r["configuration"], temperature=r.get("temperature"),
+                              seeds=r.get("seeds"), not_applicable_cases=r.get("not_applicable_cases"))
+            all_runs[i] = {**r, **fixed, "timestamp": r.get("timestamp"), "_filename": r["_filename"]}
     for r in all_runs:
-        cases_list = r.get("case_results", [])
-        des_cases = [c for c in cases_list if c.get("design_required", c.get("code_compliant") is not None)]
-        n_des = len(des_cases)
-        r["design_cases"] = n_des
-        if n_des > 0:
-            strict_comp = sum(
-                1 for c in des_cases
-                if (c.get("final_dcr") is not None and c["final_dcr"] <= 1.00) or c.get("code_compliant") is True
-            )
-            margin_comp = sum(
-                1 for c in des_cases
-                if (c.get("final_dcr") is not None and c["final_dcr"] <= 1.02) or c.get("code_compliant") is True
-            )
-            r["compliant_cases"] = strict_comp
-            r["code_compliance_rate_pct"] = round((strict_comp / n_des) * 100.0, 1)
-            r["code_compliance_rate_margin_pct"] = round((margin_comp / n_des) * 100.0, 1)
-        else:
-            r["code_compliance_rate_margin_pct"] = None
+        r["case_results"] = [c for c in r.get("case_results", []) if c.get("failure_mode") not in SETUP_FAILURES]
 
-        # Ensure iterations_to_converge and material_economy_ratio are populated in cases
-        for c in cases_list:
-            if "iterations_to_converge" not in c:
-                dcr_hist = c.get("dcr_history", [])
-                if dcr_hist and dcr_hist[0] is not None and dcr_hist[0] > 1.0:
-                    c["iterations_to_converge"] = (len(dcr_hist) - 1) if c.get("code_compliant") else None
-                elif dcr_hist and dcr_hist[0] is not None and dcr_hist[0] <= 1.0:
-                    c["iterations_to_converge"] = 0
-                else:
-                    c["iterations_to_converge"] = None
+    # CCR from the per-run oracle verdicts (DCR <= 1.0 in the design space; agents must also have checked the
+    # delivered model), over the design runs of the 15 CCR-eligible cases
+    for r in all_runs:
+        des_cases = [c for c in r.get("case_results", []) if c.get("design_required")]
+        r["design_cases"] = len(des_cases)
+        r["compliant_cases"] = sum(1 for c in des_cases if c.get("code_compliant") is True)
+        if des_cases:
+            r["code_compliance_rate_pct"] = round(100.0 * r["compliant_cases"] / len(des_cases), 1)
 
-            if "material_economy_ratio" not in c or c.get("material_economy_ratio") is None:
-                cid = c.get("case_id")
-                b_vol = baseline_vols.get(cid)
-                c_vol = c.get("concrete_volume_m3", 0.0)
-                if b_vol and c_vol and c_vol > 0 and c.get("code_compliant") is True:
-                    c["material_economy_ratio"] = round(c_vol / b_vol, 3)
-
-        if "avg_convergence_iterations" not in r:
-            ref_cases = [c for c in cases_list if c.get("initial_dcr") is not None and c["initial_dcr"] > 1.0]
-            conv_cases = [c for c in ref_cases if c.get("iterations_to_converge") is not None]
-            r["reflection_cases_count"] = len(ref_cases)
-            r["converged_reflection_cases_count"] = len(conv_cases)
-            r["avg_convergence_iterations"] = (
-                round(sum(c["iterations_to_converge"] for c in conv_cases) / len(conv_cases), 2)
-                if conv_cases else None
-            )
-
-        if r.get("configuration") == "heuristic":
-            r["claim_completeness_rate_pct"] = None
-        elif "claim_completeness_rate_pct" not in r or r["claim_completeness_rate_pct"] is None:
-            cc_vals = [c["claim_completeness_pct"] for c in cases_list if c.get("claim_completeness_pct") is not None]
-            r["claim_completeness_rate_pct"] = round(sum(cc_vals) / len(cc_vals), 1) if cc_vals else None
-
-        if "avg_material_economy_ratio" not in r or r["avg_material_economy_ratio"] is None:
-            valid_etas = [c["material_economy_ratio"] for c in cases_list if c.get("material_economy_ratio") is not None]
-            r["avg_material_economy_ratio"] = round(sum(valid_etas) / len(valid_etas), 3) if valid_etas else None
-
-        r["total_runs"] = r.get("total_runs", len(cases_list))
-        r["unique_cases"] = r.get("unique_cases", len({c.get("case_id") for c in cases_list}))
-        r["design_runs"] = r.get("design_runs", n_des)
-        r["unique_design_cases"] = r.get("unique_design_cases", len({c.get("case_id") for c in des_cases}))
 
     if include_all_runs:
         return all_runs
@@ -150,8 +108,68 @@ def load_all_results(results_dir: Path, include_all_runs: bool = False) -> List[
     return list(latest_by_model_config.values())
 
 
+def resizing_case_ids() -> List[str]:
+    """Cases that start from prescribed trial sections (A07, A08, B08): the convergence (N_iter) cases."""
+    return [cid for cid, c in cases_by_id().items() if c.spec.initial_sections is not None]
+
+
+def _plot_convergence(summaries: List[Dict[str, Any]], output_dir: Path) -> Optional[Path]:
+    import numpy as np
+    from collections import defaultdict
+
+    # The full agent only: an ablated run cannot resize, so its history is the single check of the trial sections
+    agent_runs = sorted((s for s in summaries if s.get("configuration") == "full_agent"), key=lambda s: s["model"])
+    resizing = resizing_case_ids()
+    panels = []
+    for s in agent_runs:
+        hists: Dict[str, List[List[float]]] = defaultdict(list)
+        for c in s.get("case_results", []):
+            if c.get("case_id") in resizing and c.get("dcr_history"):
+                hists[c["case_id"]].append(c["dcr_history"])
+        if hists:
+            panels.append((s["model"], hists))
+    if not panels:
+        return None
+
+    from matplotlib.ticker import MaxNLocator
+
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#9467bd", "#8c564b"]
+    n_cols = 2 if len(panels) > 2 else len(panels)
+    n_rows = -(-len(panels) // n_cols)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.2 * n_cols, 3.9 * n_rows), dpi=300, squeeze=False,
+                             sharey=True)
+    for ax in axes.flat[len(panels):]:
+        ax.set_visible(False)
+    for ax, (title, hists) in zip(axes.flat, panels):
+        for k, (cid, runs) in enumerate(sorted(hists.items())):
+            n = max(len(h) for h in runs)
+            arr = np.array([h + [h[-1]] * (n - len(h)) for h in runs])
+            mean, std = arr.mean(axis=0), arr.std(axis=0)
+            checks = np.arange(1, n + 1)
+            col = colors[k % len(colors)]
+            label = cid.split("_")[0] + (f" (n={len(runs)})" if len(runs) > 1 else "")
+            ax.plot(checks, mean, marker="o", linewidth=2.0, color=col, label=label)
+            if len(runs) > 1:
+                ax.fill_between(checks, mean - std, mean + std, color=col, alpha=0.2)
+        ax.axhline(1.0, color="red", linestyle="--", linewidth=1.2, label="DCR = 1.0")
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.set_xlabel("Design check (run_design call)", fontsize=10)
+        ax.set_ylabel("Governing DCR", fontsize=10)
+        ax.set_title(title, fontsize=10, fontweight="bold")
+        ax.legend(fontsize=8)
+        ax.grid(True, linestyle="--", alpha=0.6)
+    plt.tight_layout()
+    conv_file = get_unique_filepath(output_dir, "fig_dcr_convergence", ".png")
+    plt.savefig(conv_file, dpi=300)
+    plt.close()
+    print(f"[OK] Saved unique convergence plot: {conv_file}")
+    return conv_file
+
+
 def generate_plots(summaries: List[Dict[str, Any]], output_dir: Path) -> List[Path]:
     """Generate publication figures using matplotlib and save with unique timestamped filenames."""
+    import numpy as np
+
     if not summaries:
         print("No benchmark summaries found to plot.")
         return []
@@ -199,66 +217,11 @@ def generate_plots(summaries: List[Dict[str, Any]], output_dir: Path) -> List[Pa
     saved_plots.append(plot_file)
     print(f"[OK] Saved unique comparative plot: {plot_file}")
 
-    # 2. Convergence Trajectory Plot (mean +- shaded std band per reflection case across seeds)
-    import numpy as np
-    from collections import defaultdict
-    fig, ax = plt.subplots(figsize=(7.8, 5.0), dpi=300)
-    has_curves = False
-
-    # Prefer full_agent configuration for convergence trajectories
-    target_summary = next(
-        (s for s in summaries if s.get("configuration") == "full_agent"),
-        summaries[0] if summaries else None,
-    )
-    if target_summary:
-        histories_by_case: Dict[str, List[List[float]]] = defaultdict(list)
-        for case in target_summary.get("case_results", []):
-            dcr_hist = case.get("dcr_history", [])
-            if len(dcr_hist) > 1:
-                histories_by_case[case["case_id"]].append(dcr_hist)
-
-        case_colors = {
-            "A08_2D_Overstressed_Portal_Reflection": "#1f77b4",
-            "B07_3D_HighSeismic_Reflection": "#ff7f0e",
-            "C07_2D_Dynamic_Reflection": "#2ca02c",
-        }
-
-        for cid, hists in histories_by_case.items():
-            if not hists:
-                continue
-            has_curves = True
-            max_len = max(len(h) for h in hists)
-            padded = []
-            for h in hists:
-                padded.append(h + [h[-1]] * (max_len - len(h)))
-
-            arr = np.array(padded)
-            means = np.mean(arr, axis=0)
-            stds = np.std(arr, axis=0)
-            iters = np.arange(1, max_len + 1)
-            col = case_colors.get(cid, "#9467bd")
-
-            label_name = cid.replace("A08_2D_Overstressed_Portal_Reflection", "A08 (Portal Reflection)").replace(
-                "B07_3D_HighSeismic_Reflection", "B07 (3D High-Seismic)"
-            ).replace("C07_2D_Dynamic_Reflection", "C07 (Dynamic Time-History)")
-
-            ax.plot(iters, means, marker="o", linewidth=2.0, color=col, label=f"{label_name} (mean)")
-            if len(hists) > 1 and np.any(stds > 1e-4):
-                ax.fill_between(iters, means - stds, means + stds, color=col, alpha=0.25, label=f"{label_name} (±1 std)")
-
-    if has_curves:
-        ax.axhline(1.0, color="red", linestyle="--", linewidth=1.5, label="Code Limit (DCR = 1.0)")
-        ax.set_xlabel("Optimization / Reflection Iteration", fontsize=11, fontweight="bold")
-        ax.set_ylabel("Governing Demand-Capacity Ratio (DCR)", fontsize=11, fontweight="bold")
-        ax.set_title("Self-Healing Reflection Convergence Trajectories", fontsize=12, fontweight="bold")
-        ax.legend(frameon=True, fontsize=8, loc="upper right")
-        ax.grid(True, linestyle="--", alpha=0.7)
-        plt.tight_layout()
-        conv_file = get_unique_filepath(output_dir, "fig_dcr_convergence", ".png")
-        plt.savefig(conv_file, dpi=300)
-        plt.close()
+    # 2. Convergence trajectories of the resizing cases (those that start from trial sections), one panel per
+    #    agent run: governing DCR of each design check, mean +- std across seeds (shorter runs hold their last value)
+    conv_file = _plot_convergence(summaries, output_dir)
+    if conv_file is not None:
         saved_plots.append(conv_file)
-        print(f"[OK] Saved unique convergence plot: {conv_file}")
 
     # 3. Material Economy Ratio Bar Chart (eta = V_agent / V_baseline)
     eta_models = []
@@ -629,8 +592,8 @@ def print_and_save_markdown_table(summaries: List[Dict[str, Any]], results_dir: 
         "=" * 175,
         " SUMMARY BENCHMARK RESULTS TABLE (FOR MANUSCRIPT SECTION 5)",
         "=" * 175,
-        "| Model Name | Config | Runs (TCR) / Cases | Compliant (CCR Strict / Margin) | CHR % | Claim Completeness % | Fidelity (PSFR) | Avg N_iter | Material (eta) | Avg Time (s) | Source File |",
-        "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---|",
+        "| Model Name | Config | Runs (TCR) / Cases | Compliant (CCR) | CHR % | Claim Completeness % | Fidelity (PSFR) | Probe Behavior | Avg N_iter | Material (eta) | Turn Limit % | Repeated Calls / Run | Avg Time (s) | Source File |",
+        "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---|",
     ]
     for s in summaries:
         m = s.get("model", "N/A")
@@ -643,7 +606,6 @@ def print_and_save_markdown_table(summaries: List[Dict[str, Any]], results_dir: 
         cmp = s.get("compliant_cases", 0)
         tcr = s.get("task_completion_rate_pct", 0.0)
         ccr = s.get("code_compliance_rate_pct")
-        ccr_margin = s.get("code_compliance_rate_margin_pct")
 
         seed_stats = _compute_run_level_seed_stats(cases_list)
         if seed_stats:
@@ -682,13 +644,7 @@ def print_and_save_markdown_table(summaries: List[Dict[str, Any]], results_dir: 
                 eta_str = f"**{eta:.3f}**" if eta is not None else "-"
         else:
             runs_display = f"{tot} (**{tcr:.1f}%**) / {u_cases}" if tot != u_cases else f"{tot} (**{tcr:.1f}%**)"
-            ccr_str = f"**{ccr:.1f}%**" if ccr is not None else "N/A"
-            if ccr is not None and ccr_margin is not None and ccr_margin != ccr:
-                ccr_display = f"{cmp}/{des} ({ccr_str} / **{ccr_margin:.1f}%**)"
-            elif ccr is not None:
-                ccr_display = f"{cmp}/{des} ({ccr_str})"
-            else:
-                ccr_display = "N/A"
+            ccr_display = f"{cmp}/{des} (**{ccr:.1f}%**)" if ccr is not None else "N/A"
 
             chr_val = s.get("calculation_hallucination_rate_pct")
             chr_str = f"**{chr_val:.1f}%**" if chr_val is not None else "0.0%"
@@ -707,13 +663,26 @@ def print_and_save_markdown_table(summaries: List[Dict[str, Any]], results_dir: 
         n_iter_str = f"{n_iter:.1f}" if n_iter is not None else "-"
         rt = s.get("avg_runtime_sec", 0.0)
         fn = s.get("_filename", "N/A")
+        probe = s.get("probe_behavior_rate_pct")
+        probe_str = f"{probe:.1f}%" if probe is not None else "N/A"
+        if cfg in ("full_agent", "ablated") and cases_list:
+            n_runs = len(cases_list)
+            limit_str = f"{100.0 * sum(1 for c in cases_list if c.get('turn_limit_reached')) / n_runs:.1f}%"
+            repeat_str = f"{sum(c.get('repeated_calls', 0) for c in cases_list) / n_runs:.2f}"
+        else:
+            limit_str = repeat_str = "N/A"
         lines.append(
             f"| `{m}` | {cfg} | {runs_display} | {ccr_display} | "
-            f"{chr_str} | {comp_str} | {psfr_str} | {n_iter_str} | {eta_str} | {rt:.1f}s | `{fn}` |"
+            f"{chr_str} | {comp_str} | {psfr_str} | {probe_str} | {n_iter_str} | {eta_str} | {limit_str} | {repeat_str} | "
+            f"{rt:.1f}s | `{fn}` |"
         )
     lines.append("=" * 175)
     if any(s.get("configuration") == "heuristic" for s in summaries):
         lines.append("\n*Note: CHR and CCR_claims are not applicable to the deterministic heuristic baseline (no textual claims are emitted).*")
+    for s in summaries:
+        if s.get("not_applicable_cases"):
+            lines.append(f"\n*Note: `{s.get('model')}` {s.get('configuration')}: "
+                         f"{', '.join(s['not_applicable_cases'])} not applicable (no image input); excluded from every rate.*")
 
     output_str = "\n".join(lines)
     print("\n" + output_str)
@@ -727,22 +696,10 @@ def print_and_save_markdown_table(summaries: List[Dict[str, Any]], results_dir: 
 
 def print_and_save_detailed_table(summaries: List[Dict[str, Any]], results_dir: Path) -> Optional[Path]:
     """
-    Generate and save detailed per-case comparison table between agent deliverable
-    and verified human baseline designs (P2.19).
+    Generate and save the per-case comparison between the agent deliverable and the
+    minimum-volume baseline design of each case.
     """
-    cases_file = results_dir.parent / "benchmark_cases.json"
-    if not cases_file.exists():
-        return None
-
-    try:
-        with open(cases_file, "r", encoding="utf-8") as fp:
-            bench_data = json.load(fp)
-            cases_catalog = {
-                c["id"]: c
-                for c in (bench_data if isinstance(bench_data, list) else bench_data.get("benchmark_cases", []))
-            }
-    except Exception:
-        return None
+    cases_catalog = cases_by_id()
 
     # Prefer full_agent configuration summary, fallback to first available
     target_summary = next(
@@ -756,22 +713,23 @@ def print_and_save_detailed_table(summaries: List[Dict[str, Any]], results_dir: 
 
     lines = [
         "=" * 180,
-        f" PER-CASE COMPARISON: AGENT DELIVERABLE vs. VERIFIED HUMAN BASELINE ({target_summary.get('model', 'Model')} | {target_summary.get('configuration', 'full_agent')})",
+        f" PER-CASE COMPARISON: AGENT DELIVERABLE vs. MINIMUM-VOLUME BASELINE ({target_summary.get('model', 'Model')} | {target_summary.get('configuration', 'full_agent')})",
         "=" * 180,
-        "| Case ID | Group | Baseline DCR | Agent DCR | Baseline Limit State | Agent Limit State | Baseline Vol (m^3) | Agent Vol (m^3) | eta_vol | Efficiency (V_base/V_agent) | Compliant |",
+        "| Case ID | Group | Baseline DCR | Agent DCR | Baseline Limit State | Agent Limit State | Baseline Volume | Agent Volume | eta_vol | Efficiency (V_base/V_agent) | Compliant |",
         "|:---|:---:|:---:|:---:|:---|:---|:---:|:---:|:---:|:---:|:---:|",
     ]
 
     for cid, bc in cases_catalog.items():
         ac = agent_cases.get(cid, {})
-        grp = bc.get("group", "N/A")
-        b_des = bc.get("baseline_design", {})
-        b_dcr = f"{b_des.get('governing_dcr'):.3f}" if b_des.get("governing_dcr") is not None else "-"
+        grp = bc.group
+        base = bc.baseline_design
+        b_design = base.design if base is not None and base.feasible else None
+        b_dcr = f"{b_design.governing_dcr:.3f}" if b_design is not None else "-"
         a_dcr = f"{ac.get('final_dcr'):.3f}" if ac.get("final_dcr") is not None else "N/A"
-        b_ls = b_des.get("governing_limit_state", "-")
+        b_ls = b_design.governing_limit_state if b_design is not None else "-"
         a_ls = ac.get("governing_limit_state", "-")
-        b_vol = f"{bc.get('baseline_concrete_volume_m3'):.3f}" if bc.get("baseline_concrete_volume_m3") is not None else "-"
-        a_vol = f"{ac.get('concrete_volume_m3'):.3f}" if ac.get("concrete_volume_m3") is not None else "-"
+        b_vol = f"{base.concrete_volume:.3f}" if base is not None and base.feasible else "-"
+        a_vol = f"{ac.get('concrete_volume'):.3f}" if ac.get("concrete_volume") is not None else "-"
         eta = f"{ac.get('material_economy_ratio'):.3f}" if ac.get("material_economy_ratio") is not None else "-"
         eff = (
             f"{(1.0 / ac['material_economy_ratio']):.3f}"
@@ -798,11 +756,18 @@ def print_and_save_detailed_table(summaries: List[Dict[str, Any]], results_dir: 
 def print_and_save_failure_mode_table(summaries: List[Dict[str, Any]], results_dir: Path) -> Path:
     """Tabulate failure modes per case across seeds (Item #10) for Section 5 diagnostics."""
     from collections import defaultdict
+    # Every mode run_benchmarks.classify_failure can assign, in its order of precedence
     modes = [
+        "provider_error",
+        "context_limit",
+        "runaway_generation",
         "model_construction",
         "missing_tool",
         "artifact_missing",
         "schema_fidelity",
+        "probe_behavior",
+        "design_space_violation",
+        "unverified_design",
         "dcr_non_convergence",
         "runtime_error",
     ]
@@ -810,8 +775,9 @@ def print_and_save_failure_mode_table(summaries: List[Dict[str, Any]], results_d
         "=" * 155,
         " FAILURE-MODE TAXONOMY BREAKDOWN (SECTION 5 DIAGNOSTICS - CASE-LEVEL GROUPING)",
         "=" * 155,
-        "| Model Name | Configuration | Seed Evaluation | Total Cases | Failed Cases | Model Construction | Missing Tool | Missing Artifact | Schema Fidelity | DCR Non-Convergence | Runtime / Other |",
-        "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|",
+        "| Model Name | Configuration | Seed Evaluation | Total Cases | Failed Cases | "
+        + " | ".join(m.replace("_", " ").title() for m in modes) + " |",
+        "|:---|:---:|:---:|:---:|:---:|" + ":---:|" * len(modes),
     ]
     for s in summaries:
         m = s.get("model", "N/A")
@@ -858,9 +824,7 @@ def print_and_save_failure_mode_table(summaries: List[Dict[str, Any]], results_d
 
             lines.append(
                 f"| `{m}` | {cfg} | {label} | {tot_unique_cases} | {len(failed_case_ids)} | "
-                f"{mode_case_counts['model_construction']} | {mode_case_counts['missing_tool']} | "
-                f"{mode_case_counts['artifact_missing']} | {mode_case_counts['schema_fidelity']} | "
-                f"{mode_case_counts['dcr_non_convergence']} | {mode_case_counts['runtime_error']} |"
+                + " | ".join(str(mode_case_counts[k]) for k in modes) + " |"
             )
 
     lines.append("=" * 155)
@@ -877,22 +841,94 @@ def print_and_save_failure_mode_table(summaries: List[Dict[str, Any]], results_d
 def compute_statistical_significance(summaries: List[Dict[str, Any]], results_dir: Path) -> Optional[Path]:
     """
     Run paired statistical significance tests (Wilcoxon signed-rank)
-    comparing full_agent vs. ablated across per-case seed-averaged metrics.
+    comparing full_agent vs. ablated across per-case seed-averaged metrics, one block per model.
+    """
+    by_model: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for s in summaries:
+        by_model.setdefault(s.get("model", ""), {})[s.get("configuration", "")] = s
+    pairs = [(m, cfgs["full_agent"], cfgs["ablated"]) for m, cfgs in sorted(by_model.items())
+             if "full_agent" in cfgs and "ablated" in cfgs]
+    if not pairs:
+        return None
+    lines = [
+        "=" * 135,
+        " STATISTICAL SIGNIFICANCE REPORT: full_agent vs. ablated (paired over cases, per model)",
+        "=" * 135,
+        "| Model | Metric | N Pairs | N Seeds | Test | Full Agent Mean | Ablated Mean | Difference (Delta) | Statistic | p-value | Significant (p < 0.05) |",
+        "|:---|:---|:---:|:---:|:---|:---:|:---:|:---:|:---:|:---:|:---:|",
+    ]
+    for model, full_agent_summary, ablated_summary in pairs:
+        lines += _significance_rows(model, full_agent_summary, ablated_summary)
+    lines.append("=" * 135)
+    output_str = "\n".join(lines)
+    print("\n" + output_str)
+
+    sig_file = get_unique_filepath(results_dir, "statistical_significance_report", ".md")
+    with open(sig_file, "w", encoding="utf-8") as f:
+        f.write(output_str + "\n")
+    print(f"[OK] Saved statistical significance report to: {sig_file}")
+    return sig_file
+
+
+def _significance_rows(model: str, full_agent_summary: Dict[str, Any], ablated_summary: Dict[str, Any]) -> List[str]:
+    """Table rows of the paired tests of one model (cases present in both configurations)."""
+    lines = []
+    for t in wilcoxon_tests(full_agent_summary, ablated_summary):
+        sig_badge = "**Yes (p < 0.05)**" if (t["p"] < 0.05) else "No (p >= 0.05)"
+        lines.append(
+            f"| `{model}` | {t['metric']} | {t['n']} | {t['seeds']} | {t['test']} | {t['full_mean']:.3f} | "
+            f"{t['ablated_mean']:.3f} | {t['diff']:+.3f} | {t['statistic']} | {t['p']:.4f} | {sig_badge} |"
+        )
+    return lines
+
+
+def paired_test(v_fa: List[float], v_ab: List[float]) -> Dict[str, Any]:
+    """Two-sided paired test of full_agent against ablated values of the same cases.
+
+    A binary outcome (1 or 0 per case: task completion, code compliance) gets the exact McNemar test, the binomial
+    test of the cases that differ (``n_full`` cases where only the full agent succeeded against ``n_ablated``). A
+    continuous outcome (governing DCR, runtime) gets the Wilcoxon signed-rank test of the cases that differ (zero
+    differences dropped), with its exact null distribution unless tied differences require the normal
+    approximation. The normal approximation that the Pratt treatment of zero differences needs overstates the
+    significance of a few differing binary pairs (5 of 16 in one direction: p = 0.025 against the exact 0.0625).
     """
     import numpy as np
+    import scipy.stats as stats
+
+    fa, ab = np.asarray(v_fa, dtype=float), np.asarray(v_ab, dtype=float)
+    diffs = fa - ab
+    nonzero = diffs[diffs != 0]
+    out: Dict[str, Any] = {"n": len(diffs), "n_nonzero": int(len(nonzero)), "full_mean": float(np.mean(fa)),
+                           "ablated_mean": float(np.mean(ab)), "diff": float(np.mean(fa) - np.mean(ab))}
+    if np.isin(fa, (0.0, 1.0)).all() and np.isin(ab, (0.0, 1.0)).all():
+        n_full, n_ablated = int((diffs > 0).sum()), int((diffs < 0).sum())
+        p = stats.binomtest(n_full, n_full + n_ablated, 0.5).pvalue if n_full + n_ablated else 1.0
+        out.update(test="McNemar (exact)", n_full=n_full, n_ablated=n_ablated, w=None,
+                   statistic=f"{n_full} : {n_ablated}", p=float(p))
+        return out
+    if not len(nonzero):
+        out.update(test="Wilcoxon (exact)", w=0.0, statistic="W = 0.0", p=1.0)
+        return out
+    tied = len(np.unique(np.round(np.abs(nonzero), 12))) < len(nonzero)
+    method = "asymptotic" if tied else "exact"
+    res = stats.wilcoxon(nonzero, method=method)
+    out.update(test=f"Wilcoxon ({'normal approximation' if tied else 'exact'})", w=float(res.statistic),
+               statistic=f"W = {float(res.statistic):.1f}", p=float(res.pvalue))
+    return out
+
+
+def wilcoxon_tests(full_agent_summary: Dict[str, Any], ablated_summary: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Paired tests (``paired_test``) of full_agent against ablated over the cases both ran, on each case's mean
+    over seeds: one dict per metric with the test, n pairs, n_nonzero (pairs that differ), means, statistic and
+    p."""
+    import numpy as np
     from collections import defaultdict
-
-    full_agent_summary = next((s for s in summaries if s.get("configuration") == "full_agent"), None)
-    ablated_summary = next((s for s in summaries if s.get("configuration") == "ablated"), None)
-
-    if not full_agent_summary or not ablated_summary:
-        return None
 
     fa_cases_list = full_agent_summary.get("case_results", [])
     ab_cases_list = ablated_summary.get("case_results", [])
 
     if not fa_cases_list or not ab_cases_list:
-        return None
+        return []
 
     def _per_case_means(cases: List[Dict[str, Any]], metric_fn) -> Dict[str, float]:
         by_cid = defaultdict(list)
@@ -911,11 +947,6 @@ def compute_statistical_significance(summaries: List[Dict[str, Any]], results_di
     n_seeds_fa = _count_seeds(fa_cases_list)
     n_seeds_ab = _count_seeds(ab_cases_list)
     n_seeds_report = max(n_seeds_fa, n_seeds_ab)
-
-    try:
-        import scipy.stats as stats
-    except ImportError:
-        return None
 
     metrics_to_test = {
         "Task Completion (TCR)": (
@@ -936,49 +967,15 @@ def compute_statistical_significance(summaries: List[Dict[str, Any]], results_di
         ),
     }
 
-    lines = [
-        "=" * 135,
-        f" STATISTICAL SIGNIFICANCE REPORT: full_agent vs. ablated (Model: {full_agent_summary.get('model', 'Model')})",
-        "=" * 135,
-        "| Metric | N Pairs | N Seeds | Full Agent Mean | Ablated Mean | Difference (Delta) | Wilcoxon W | p-value | Significant (p < 0.05) |",
-        "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|",
-    ]
-
+    tests = []
     for m_name, (fa_map, ab_map) in metrics_to_test.items():
         common_ids = sorted([cid for cid in fa_map if cid in ab_map])
         n = len(common_ids)
         if n < 4:
             continue
-        v_fa = [fa_map[cid] for cid in common_ids]
-        v_ab = [ab_map[cid] for cid in common_ids]
-        mean_fa = float(np.mean(v_fa))
-        mean_ab = float(np.mean(v_ab))
-        diff = mean_fa - mean_ab
-
-        diffs = np.array(v_fa) - np.array(v_ab)
-        if np.all(diffs == 0):
-            w_stat, p_val = 0.0, 1.0
-        else:
-            try:
-                res_w = stats.wilcoxon(v_fa, v_ab, zero_method="wilcox")
-                w_stat, p_val = float(res_w.statistic), float(res_w.pvalue)
-            except Exception:
-                w_stat, p_val = float("nan"), float("nan")
-
-        sig_badge = "**Yes (p < 0.05)**" if (p_val < 0.05) else "No (p >= 0.05)"
-        lines.append(
-            f"| {m_name} | {n} | {n_seeds_report} | {mean_fa:.3f} | {mean_ab:.3f} | {diff:+.3f} | {w_stat:.1f} | {p_val:.4f} | {sig_badge} |"
-        )
-
-    lines.append("=" * 135)
-    output_str = "\n".join(lines)
-    print("\n" + output_str)
-
-    sig_file = get_unique_filepath(results_dir, "statistical_significance_report", ".md")
-    with open(sig_file, "w", encoding="utf-8") as f:
-        f.write(output_str + "\n")
-    print(f"[OK] Saved statistical significance report to: {sig_file}")
-    return sig_file
+        t = paired_test([fa_map[cid] for cid in common_ids], [ab_map[cid] for cid in common_ids])
+        tests.append({"metric": m_name, "seeds": n_seeds_report, **t})
+    return tests
 
 
 def main():

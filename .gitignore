@@ -37,20 +37,41 @@ htmlcov/
 Thumbs.db
 
 # Documentation build / generated files
-README.pdf
-readme.pdf
-paper.pdf
 docs/build/
 docs/source/api/
+*.pdf
 
-# Generated figures / plots
+# Generated figures, plots, and drawings
 *.png
 *.PNG
 *.jpg
 *.jpeg
+*.jfif
 *.svg
+*.dxf
+benchmarks/plots/
 
+# Benchmark inputs that are images: the plan drawings of cases C03-C05
+!benchmarks/fixtures/*.png
+!benchmarks/fixtures/*.PNG
+
+# Manuscript (submitted to the journal, not published here)
+manuscript/
+
+# Run outputs and code snapshots (archived on Zenodo instead)
+results/
+code_snapshots/
+zenodo_upload/
+
+# Planning documents and working notes, superseded by the manuscript
+paper_idea.md
+experiment_plan.md
+experiment_run.md
+
+# Reviews, literature, and scratch work
+comments/
+literature/
 references/
-scratch/
+drawings/
 sap2000/
-*.pdf
+scratch/
