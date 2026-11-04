@@ -36,8 +36,8 @@ REPOSITORIES = ["research_paper", "struct_core", "struct_load", "fem2d", "fem3d"
 DATASET_README = """# Benchmark results: neuro-symbolic LLM agent for reinforced concrete frames
 
 Run records of the paper "A Neuro-Symbolic Large Language Model Agent for the Analysis, Design, and Detailing of
-Reinforced Concrete Frames: Framework and Oracle-Based Benchmark" (A. Mandal). The code is in the companion file
-struct_agent_code_<tag>.zip of this record and at https://github.com/learnstructure.
+Reinforced Concrete Frames: Framework and Oracle-Based Benchmark" (A. Mandal), DOI 10.5281/zenodo.23939590. The code is in the
+companion file struct_agent_code_<tag>.zip of this record and at https://github.com/learnstructure.
 
 ## Contents
 

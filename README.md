@@ -40,7 +40,7 @@ research_paper/
 ```
 
 The run records (`benchmarks/results/`: every tool call, final message, and score of the 459 runs) are archived on
-Zenodo with a snapshot of the code used for the runs: [DOI to be added]. The manuscript is not part of this
+Zenodo with a snapshot of the code used for the runs: [10.5281/zenodo.23939590](https://doi.org/10.5281/zenodo.23939590). The manuscript is not part of this
 repository.
 
 ---
