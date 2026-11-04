@@ -1,7 +1,7 @@
 # Code-Compliance Notes: Gaps and Simplifications
 
 What the design tools (`aci318` against ACI 318-25, `struct_load` against ASCE 7-22) do not implement, and where
-they simplify. The manuscript (Sections 4.1 and 6.2) refers to this list. Every other check that the benchmark
+they simplify. The manuscript (Sections 4.1 and 6) refers to this list. Every other check that the benchmark
 relies on (member strength, Chapter 15 joints, the Chapter 18 requirements of IMF and SMF, slenderness by moment
 magnification, story drift and stability) is implemented, with regression tests in its package
 (`aci318/tests/test_code_compliance_318_25.py` and the `struct_load` and `struct_agent` test suites).

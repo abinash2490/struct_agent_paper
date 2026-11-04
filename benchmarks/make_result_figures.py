@@ -37,8 +37,10 @@ FIGURES = REPO_ROOT / "research_paper" / "manuscript" / "figures"
 MODELS = ["qwen3.5:9b", "minimax-m3.1-flash:cloud", "gemma4:31b-cloud", "deepseek-v4.1-flash:cloud"]
 SHORT = {"qwen3.5:9b": "qwen3.5:9b", "minimax-m3.1-flash:cloud": "minimax-m3.1-flash",
          "gemma4:31b-cloud": "gemma4:31b", "deepseek-v4.1-flash:cloud": "deepseek-v4.1-flash"}
+FAMILY = {"qwen3.5:9b": "qwen", "minimax-m3.1-flash:cloud": "minimax", "gemma4:31b-cloud": "gemma",
+          "deepseek-v4.1-flash:cloud": "deepseek"}  # point labels of Figure 2, row labels of Figure 4
 CONFIGS = ["full_agent", "ablated", "direct_llm", "code_gen"]
-LABEL = {"full_agent": "Full agent", "ablated": "Agent without resizing", "direct_llm": "Direct prompting",
+LABEL = {"full_agent": "Full agent", "ablated": "Ablated agent", "direct_llm": "Direct prompting",
          "code_gen": "Code generation"}
 # Categorical slots 1-3 of the reference palette (validated all-pairs, light mode); code generation, which
 # delivered few results, is a neutral gray. Every configuration also has its own marker (secondary encoding).
@@ -84,8 +86,8 @@ LABEL_OFFSET = {  # (dx, dy, ha) in points for the model label of each point, pl
     ("deepseek-v4.1-flash:cloud", "ablated"): (-3, -9, "left"), ("minimax-m3.1-flash:cloud", "ablated"): (-3, -9, "left"),
     ("gemma4:31b-cloud", "ablated"): (6, 0, "left"), ("qwen3.5:9b", "ablated"): (6, 0, "left"),
     ("deepseek-v4.1-flash:cloud", "direct_llm"): (6, 0, "left"), ("minimax-m3.1-flash:cloud", "direct_llm"): (0, 9, "center"),
-    ("gemma4:31b-cloud", "direct_llm"): (6, 0, "left"), ("qwen3.5:9b", "direct_llm"): (0, 9, "right"),
-    ("deepseek-v4.1-flash:cloud", "code_gen"): (6, 0, "left"), ("gemma4:31b-cloud", "code_gen"): (0, -10, "center"),
+    ("gemma4:31b-cloud", "direct_llm"): (6, 0, "left"), ("qwen3.5:9b", "direct_llm"): (-7, 0, "right"),
+    ("deepseek-v4.1-flash:cloud", "code_gen"): (8, 0, "left"), ("gemma4:31b-cloud", "code_gen"): (0, -10, "center"),
 }
 
 
@@ -106,7 +108,7 @@ def figure_ccr_chr(runs) -> None:
                        facecolor=SURFACE if hollow else COLOR[cfg], edgecolor=COLOR[cfg] if hollow else SURFACE,
                        linewidth=1.4 if hollow else 1.0)
             dx, dy, ha = LABEL_OFFSET.get((model, cfg), (6, 0, "left"))
-            ax.annotate(SHORT[model], (chr_, ccr), xytext=(dx, dy), textcoords="offset points", fontsize=6.5,
+            ax.annotate(FAMILY[model], (chr_, ccr), xytext=(dx, dy), textcoords="offset points", fontsize=6.5,
                         color=INK_2, ha=ha, va="center")
     ax.set_xlim(-2, 66)
     ax.set_ylim(-4, 110)
@@ -115,7 +117,10 @@ def figure_ccr_chr(runs) -> None:
     handles = [Line2D([], [], linestyle="", marker=MARKER[c], markersize=6,
                       markerfacecolor=SURFACE if c == "code_gen" else COLOR[c],
                       markeredgecolor=COLOR[c] if c == "code_gen" else SURFACE, label=LABEL[c]) for c in CONFIGS]
-    ax.legend(handles=handles, loc="center right", bbox_to_anchor=(0.98, 0.42), handletextpad=0.4)
+    legend = ax.legend(handles=handles, loc="center right", bbox_to_anchor=(0.98, 0.42), handletextpad=0.4,
+                       frameon=True, fancybox=False, framealpha=1.0, facecolor=SURFACE, edgecolor=INK_2,
+                       borderpad=0.6)
+    legend.get_frame().set_linewidth(0.6)
     _save(fig, "fig_ccr_chr")
 
 
@@ -172,7 +177,7 @@ def figure_oracle_dcr(runs) -> None:
         ax.set_yticks(ticks)
         ax.set_yticklabels([f"{t:.1f}" for t in ticks])
         ax.set_xticks(range(len(CONFIGS)))
-        ax.set_xticklabels(["Full\nagent", "Without\nresizing", "Direct\nprompting", "Code\ngeneration"], fontsize=7)
+        ax.set_xticklabels(["Full\nagent", "Ablated\nagent", "Direct\nprompting", "Code\ngeneration"], fontsize=7)
         ax.set_xlim(-0.6, len(CONFIGS) - 0.4)
         ax.set_title(SHORT[model], loc="left", color=INK)
     for ax in axes[:, 0]:
@@ -197,7 +202,7 @@ def _plan_runs(runs) -> Dict[str, Dict[str, object]]:
                             if r["case_id"].startswith(cid)), None)
                 drafts = [t for t in (rec or {}).get("tool_log", [])
                           if t["tool"] == "create_model_from_plan_draft" and t.get("ok")]
-                label = f"{SHORT[model]}, {'full' if cfg == 'full_agent' else 'without resizing'}"
+                label = f"{FAMILY[model]}, {'full' if cfg == 'full_agent' else 'ablated'}"
                 if not drafts:
                     out[cid]["runs"].append((label, None))
                     continue

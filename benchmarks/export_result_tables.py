@@ -69,7 +69,7 @@ def _summaries() -> Dict[tuple, Dict[str, Any]]:
 
 def global_performance(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
     lines = [_row(["Model", "Configuration", "Runs", "TCR (%)", "CCR", "CHR (%)", "Claims (%)", "PSFR (%)",
-                   "Probes", "N_iter", "η_vol", "Turn limit (%)", "Repeats / run", "Runtime (s)"]),
+                   "Probes", "$N_{\text{iter}}$", "$\eta_{\text{vol}}$", "Turn limit (%)", "Repeats / run", "Runtime (s)"]),
              _row(["---", "---"] + [":---:"] * 12)]
     keys = [(m, c) for m in MODELS for c in CONFIGS] + [("deterministic_heuristic", "heuristic")]
     for key in keys:
