@@ -353,10 +353,12 @@ def generate_plots(summaries: List[Dict[str, Any]], output_dir: Path) -> List[Pa
     # 5. Hallucination Error Magnitude Breakdown by Physical Metric
     import numpy as np
     metric_labels = {
-        "total_weight_kN": "Structural Weight (W)",
+        "total_weight": "Structural Weight (W)",
         "governing_dcr": "Governing DCR",
-        "fundamental_period_s": "Modal Period (T1)",
-        "base_shear_kN": "Seismic Base Shear (Vb)"
+        "fundamental_period": "Modal Period (T1)",
+        "base_shear": "Seismic Base Shear (Vb)",
+        "peak_roof_displacement": "Peak Roof Displacement",
+        "max_base_reaction": "Max Base Reaction",
     }
     metric_errors_by_config = {}
     for s in summaries:

@@ -42,6 +42,8 @@ Metric = Literal[METRICS]  # type: ignore[valid-type]
 # Largest departure (spec length units) of a delivered dimension from the design grid and its bounds: a
 # grid value rounded to two or more decimals (e.g. 16 in = 1.33 ft, 10 in = 0.8333 ft) still lies on the grid.
 GRID_ROUNDING = 0.005
+# The design-space violation of sections beyond a stated architectural limit (D02)
+LIMIT_VIOLATION = "section exceeds the stated architectural limits"
 
 DesignTask = Literal["none", "design", "check"]
 Behavior = Literal["report_infeasible", "declare_assumption", "flag_contradiction"]
@@ -116,6 +118,8 @@ class Foundation(_Strict):
     allowable_bearing_pressure: float = Field(
         gt=0.0, description="Net allowable soil bearing pressure under service loads, spec pressure units (kPa, ksf)"
     )
+    soil_depth: float = Field(ge=0.0, description="Depth of soil above the top of the footings, spec length units")
+    soil_unit_weight: float = Field(gt=0.0, description="Unit weight of that soil, spec weight density units")
 
 
 class Loads(_Strict):
@@ -190,7 +194,7 @@ class Spec(_Strict):
     loads: Optional[Loads] = None
     seismic: Optional[Seismic] = None
     foundation: Optional[Foundation] = Field(
-        default=None, description="Footing inputs of a design or check case (footings are not scored)"
+        default=None, description="Footing inputs of a design or check case (footings are designed and scored)"
     )
 
     @model_validator(mode="after")
@@ -255,14 +259,16 @@ class ReferenceSolution(_Strict):
     metrics: Dict[str, float] = Field(default_factory=dict)
     design: Optional[DesignSummary] = None
     initial_dcr: Optional[float] = None
-    concrete_volume: Optional[float] = None
+    concrete_volume: Optional[float] = None  # frame members
+    footing_volume: Optional[float] = None   # footings designed by the oracle
 
 
 class BaselineDesign(_Strict):
     method: Literal["min_volume_grid_search"] = "min_volume_grid_search"
     feasible: bool
     sections: Optional[SectionPair] = None
-    concrete_volume: Optional[float] = None
+    concrete_volume: Optional[float] = None  # frame members (the minimized quantity)
+    footing_volume: Optional[float] = None   # footings designed by the oracle for these sections
     design: Optional[DesignSummary] = None
     evaluations: int
     candidates: int
@@ -325,7 +331,7 @@ class BenchmarkCase(_Strict):
             out.append(f"dimensions are not multiples of {g.step:g}")
         lim = self.spec.section_limits
         if lim is not None and (max(cb, bb) > lim.max_width + tol or max(ch, bh) > lim.max_depth + tol):
-            out.append("section exceeds the stated architectural limits")
+            out.append(LIMIT_VIOLATION)
         return out
 
 

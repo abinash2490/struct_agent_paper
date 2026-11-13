@@ -34,6 +34,22 @@ def _get(obj: Any, *names: str, default: Any = None) -> Any:
     return default
 
 
+def designed_footing_volume(project: Any, design_case_id: str) -> float:
+    """Concrete volume L * B * h of the footings designed in ``design_case_id``, in model length units cubed."""
+    design = project.design_results[design_case_id]
+    units = project.metadata.units
+    to_model = conversion_factor("kip, in", units, "length")
+    total = 0.0
+    for eid, result in design.element_results.items():
+        if getattr(result, "member_type", None) != "footing":
+            continue
+        dims = [getattr(result, name, None) for name in ("_length_in", "_width_in", "_thickness_in")]
+        if any(d is None or d <= 0.0 for d in dims):
+            raise ValueError(f"Footing '{eid}' has no dimensions on its design result.")
+        total += dims[0] * dims[1] * dims[2] * to_model ** 3
+    return total
+
+
 def calculate_concrete_volume(project: Any, strict: bool = False) -> float:
     """
     Total concrete volume sum(A_e * L_e) in model length units cubed.
@@ -100,10 +116,13 @@ _PATTERNS: Dict[str, Tuple[str, ...]] = {
     "total_weight": (
         r"\btotal\s+(?:(?:dead\s+(?:load|weight)|structural\s+weight|weight)\s*(?:\(?\s*w\s*\)?)?|w\b)",  # also 'Total W'
         r"(?-i:\bW)(?:_dead)?\s*=",  # "W = 288.96 + 700.00 = 988.96 kN" (capital W only), "W_dead = 3261.9 kN"
-        # the symbol with its meaning (minimax A02, A03: '| **W (total dead)** | **1,533.0** |')
-        r"(?-i:\bW)\s*\(\s*(?:total\s+)?dead(?:\s+(?:load|weight))?\s*\)",
-        # not a component's weight (minimax A02: 'member self-weight (γ = 23.54 kN/m³). Total LL applied = 702.0 kN')
-        r"(?<![-\w])(?<!partition\s)(?:dead\s+(?:load|weight)|structural\s+weight|weight)\s*(?:\(?\s*w\s*\)?)?",
+        # the symbol with its meaning (minimax A02, A03: '| **W (total dead)** | **1,533.0** |';
+        # deepseek ablated B05: '| **W (member self-weight + floor dead)** | **4,156 kN** |')
+        r"(?-i:\bW)\s*\([^()\n]*\bdead\b[^()\n]*\)",
+        # not a component's weight (minimax A02: 'member self-weight (γ = 23.54 kN/m³). Total LL applied = 702.0 kN'),
+        # nor a count of loads (deepseek ablated B08: '(138 dead loads, 51 live loads)')
+        r"(?<![-\w])(?<!partition\s)(?:dead\s+(?:load|weight)(?!s)|structural\s+weight(?!s)|weight(?!s))"
+        r"\s*(?:\(?\s*w\s*\)?)?",
     ),
     # not a coefficient (minimax C01: 'a base shear coefficient C_s ≈ 0.13'); 'V_base = 132.37 kN' is one
     "base_shear": (r"\b(?:peak\s+)?(?:base\s+shear(?!\s+(?:coefficient|ratio|factor)\b)|v[_\s]?b(?:,?\s*x)?|v_?base)\b",),
@@ -114,11 +133,16 @@ _PATTERNS: Dict[str, Tuple[str, ...]] = {
     "modal_mass_ratio": (r"\b(?:(?:cumulative\s+)?(?:modal\s+)?(?:effective\s+)?mass\s+participation(?:\s+ratio)?|"
                          r"(?:cumulative|modal|effective)\s+(?:modal\s+)?(?:effective\s+)?mass\s+ratio)\b",
                          # the cumulative value of a list under a mass participation heading (deepseek A03:
-                         # '- Mode 1: 90.21 %' / '- Modes 1–2: 98.64 %' / '- **Modes 1–3: 100.0 %**'); a percentage
+                         # '- Mode 1: 90.21 %' / '- Modes 1–2: 98.64 %' / '- **Modes 1–3: 100.0 %**', or
+                         # '- 1 mode: 90.21 %' / '- 2 modes: 98.64 %' / '- **3 modes: 100.00 %**'); a percentage
                          # only, so that a list of periods ('modes 1-3: 0.52, 0.16, 0.09 s') is not read
-                         r"\bmodes\s+1\s*-\s*3\s*(?=[:=]\s*\d+(?:\.\d+)?\s*%)",
-                         # the mode-3 item of a list marked cumulative (qwen B03: '- Mode 3: 0.8977 (89.77% cumulative)')
-                         r"\bmode\s+3\s*(?=[:=]\s*\d+(?:\.\d+)?[^\n]{0,30}\bcumulative\b)"),
+                         r"\b(?:modes\s+1\s*-\s*3|(?:first\s+)?(?:3|three)\s+modes)\s*(?=[:=]\s*\d+(?:\.\d+)?\s*%)",
+                         # the mode-3 item of a list marked cumulative (qwen B03: '- Mode 3: 0.8977 (89.77% cumulative)';
+                         # deepseek ablated B03: '- Mode 1: 0.05 % -> Mode 2: 88.85 % -> **Mode 3: 89.77 %**')
+                         r"\bmode\s+3\s*(?=[:=]\s*\d+(?:\.\d+)?[^\n]{0,30}\bcumulative\b)|"
+                         # an arrow before mode 3 marks the running sum; a plain list of the three modes' own
+                         # ratios ('Mode 1: 85 %, Mode 2: 10 %, Mode 3: 3 %') states no cumulative value
+                         r"\bmode\s+2\b[^\n]{0,40}?(?:->|=>|→|⇒)[\s*_]*mode\s+3\s*(?=[:=]\s*\d+(?:\.\d+)?\s*%)"),
     "peak_roof_displacement": (r"\b(?:peak\s+)?roof\s+(?:lateral\s+)?displacement\b",),
     "max_base_reaction": (r"\b(?:max(?:imum)?|largest|peak)\s+(?:vertical\s+)?(?:base|support|column)\s+reaction\b",),
 }
@@ -141,7 +165,7 @@ _WINDOW = 300  # characters after a label searched for its value, on the label's
 # A number followed by an operator is a term of a calculation or a dimension pair, not the value:
 # "W = 288.96 + 700.00 = 988.96 kN", "0.30 × 0.45 m"; but a number before '=' that no operator precedes is the
 # label's value followed by its derivation (minimax C05: 'Total dead load W = 7 555.6 kN = floor dead load ...')
-_OPERAND = re.compile(r"\s*(?:[+×*/=]|x\s)")
+_OPERAND = re.compile(r"\s*(?:[+×*/=]|(?:->|=>|→|⇒)\s*(?=-?\d)|x\s)")
 _TERM_BEFORE = re.compile(r"(?:[+×*/-]|\bx)\s*$")
 
 
@@ -166,7 +190,7 @@ def _is_citation(text: str, start: int, end: int) -> bool:
     # "a 3-story building" (not a table value followed by the next cell: '| 0.998 | Beam flexure')
     if re.fullmatch(r"\d+", text[start:end]) and re.match(
             r"[ -]?(?:modes?|stor(?:e)?ys?|stories|floors?|levels?|bays?|spans?|columns?|beams?|frames?|seeds?|"
-            r"iterations?|cycles?)\b", text[end:end + 12], re.IGNORECASE):
+            r"iterations?|cycles?|(?:(?:dead|live)\s+)?loads)\b", text[end:end + 16], re.IGNORECASE):
         return True
     if re.match(r"\s?(?:D|L|Lr|E|Ex|Ey|EX|EY|W|S|H)\b", text[end:end + 4]):  # load factors: 1.2D + 1.6L
         return True
@@ -178,17 +202,21 @@ _NOT_GOVERNING = re.compile(r"\b(?:drift|stability|joint|footing|foundation|bear
 # ACI 318-25 §6.2.5.3 — second-order end moment ≤ 1.4 × first-order moment, DCR 0.755'), not the members' governing DCR
 # or on a row about it (minimax A05: '| Second order | Q = 0.026–0.030; ... all 15 analysis frame checks ... passed
 # (governing DCR 0.756) |')
-_SECOND_ORDER_CHECK = re.compile(r"\bsecond-order\s+(?:condition|check|limit|end\s+moment|moment\s+ratio)\b|"
-                                 r"^\W*second[\s-]order\b", re.IGNORECASE)
-# Footings are designed but not scored: a DCR on a line about them is theirs (qwen B06: 'All footings pass with DCR
+_SECOND_ORDER_CHECK = re.compile(
+    r"\b(?:second-order|slenderness)\s+(?:condition|check|limit|end[\s-]moment|moment\s+ratio)\b|"
+    r"^\W*(?:second[\s-]order|slenderness)\b|§\s*6\.2\.5\.3\b",
+    re.IGNORECASE,
+)
+# A DCR on a line about the footings is theirs, not the overall governing DCR (qwen B06: 'All footings pass with DCR
 # between 0.85 and 1.00')
 _FOOTING_LINE = re.compile(r"\b(?:footings?|foundations?)\b", re.IGNORECASE)
 # A period symbol after another one is an item of a list whose values follow in order (minimax A03: 'T2/T3 (0.163 s,
 # 0.093 s)'); the first value is not T3's
 _LISTED_SYMBOL = re.compile(r"\bT_?\d\s*(?:[/,&]|and)\s*$", re.IGNORECASE)
 # An unscaled response spectrum base shear is not the design base shear Vb (deepseek B09: 'Modal base shear | 676.8 kN'
-# above 'ELF base shear V (design) | 816.4 kN' and 'Base shear Vb, X direction | 816 kN')
-_NOT_DESIGN_SHEAR = re.compile(r"\b(?:modal|unscaled|elastic)\s*$", re.IGNORECASE)
+# above 'ELF base shear V (design) | 816.4 kN' and 'Base shear Vb, X direction | 816 kN'; deepseek ablated A08:
+# 'Modal (R-reduced) base shear = 72.01 kN < ELF V = 181.83 kN -> scaled x2.525 per §12.9.1.4 => design base shear Vb = 181.83 kN')
+_NOT_DESIGN_SHEAR = re.compile(r"\b(?:modal|unscaled|elastic)(?:\s*\([^()\n]*\))?\s*$", re.IGNORECASE)
 
 
 _HEADING = re.compile(r"\s*(?:#{1,6}\s.*|\*\*[^*\n]{1,80}\*\*\s*:?\s*|[^:\n]{0,80}:\s*)")
@@ -236,7 +264,7 @@ _OTHER_STATE = re.compile(r"\b(?:trial|initial|first\s+(?:design\s+check|pass|it
 _UNBUILT = re.compile(r"\bnot\s+(?:executable|executed|implemented|applied|built)\b|"
                       r"\b(?:revision|changes?)\s+required\b|\brequired\s+(?:revision|changes?)\b", re.IGNORECASE)
 # Parenthetical qualifiers after a label ("V_b (ASCE 7-22 ELF, R = 5)") and formulas in braces hold no value
-_QUALIFIER = re.compile(r"\((?!\s*[-\d.])[^()]*\)|\{[^{}]*\}")
+_QUALIFIER = re.compile(r"\((?!\s*[-\d.])(?:[^()]|\([^()]*\))*\)|\{[^{}]*\}")
 
 
 def _without_other_states(text: str) -> str:
@@ -265,17 +293,20 @@ def _value_window(text: str, start: int, symbol: Optional[str] = None) -> Tuple[
     its value on the next line (gemma A03: '... participation ratio for the first three modes is:' over the
     bullet '- Sum MPR_x = 1.00'); True marks such an announcement, whose bullet is the value, not a sub-item.
     A label line without a number whose next line is an equation of the metric's own ``symbol`` takes that line
-    too (minimax C01: the bold line '**Base shear, load case EQx**' over 'V = **132.37 kN**')."""
+    too (minimax C01: the bold line '**Base shear, load case EQx**' over 'V = **132.37 kN**'). Load factors and
+    code references on the label line are not numbers of its own, and the equation may be bold (deepseek B01: the
+    heading '### 2. Maximum vertical support reaction under 1.2D + 1.6L' over '**R_max = 1149.7 kN** at node 6')."""
     window = text[start:start + _WINDOW]
     cut = window.find("\n")
     if cut == -1:
         return window, None, False
     first = window[:cut]
-    if symbol is not None and not re.search(r"\d", first):
+    if symbol is not None and all(_is_citation(text, start + m.start(), start + m.end())
+                                  for m in re.finditer(r"\d+(?:\.\d+)?", first)):
         nxt = cut + 1
         while blank := re.match(r"[ \t]*\n", window[nxt:]):
             nxt += blank.end()
-        if re.match(rf"\s*(?:-\s+)?(?-i:{symbol})(?:_[\w,-]+)?\s*=\s*-?\d", window[nxt:]):
+        if re.match(rf"\s*(?:-\s+)?(?:\*\*|__)?(?-i:{symbol})(?:_[\w,-]+)?\s*=\s*-?\d", window[nxt:]):
             end = window.find("\n", nxt)
             return (window if end == -1 else window[:end]), nxt, False
     # a heading whose label ends with a qualifier only (deepseek B03: '3. Cumulative X-direction modal mass
@@ -302,10 +333,16 @@ def _first_claim(metric: str, pattern: str, text: str) -> Optional[Tuple[float, 
         if metric == "governing_dcr" and _NOT_GOVERNING.search(text[max(0, label.start() - 20):label.start()]):
             continue  # a drift, stability, joint or footing DCR is not the members' governing DCR
         line_start = text.rfind("\n", 0, label.start()) + 1
+        if re.match(r"\s*/\s*[A-Za-z]", text[label.end():label.end() + 4]):
+            continue  # a ratio of the symbol (deepseek ablated B04: 'Cs = Vb/W = 0.150')
+        if re.search(r"/\s*$", text[line_start:label.start()]):
+            continue  # the symbol is the denominator of a ratio (minimax ablated C02: 'V/W = 0.134')
+        if re.search(r"\b(?:min|max)\s*\([^()\n]*$", text[line_start:label.start()], re.IGNORECASE):
+            continue  # an argument of a function (deepseek ablated B09: 'T = min(Cu·Ta, T1) = 1.33 s')
         if metric == "governing_dcr" and (_SECOND_ORDER_CHECK.search(text[line_start:label.start()])
                                           or _FOOTING_LINE.search(text[line_start:label.start()])):
             continue
-        if metric == "base_shear" and _NOT_DESIGN_SHEAR.search(text[max(0, label.start() - 20):label.start()]):
+        if metric == "base_shear" and _NOT_DESIGN_SHEAR.search(text[line_start:label.start()]):
             continue
         if metric in _PERIOD_ORDER and _LISTED_SYMBOL.search(text[line_start:label.start()]):
             continue
@@ -324,7 +361,7 @@ def _first_claim(metric: str, pattern: str, text: str) -> Optional[Tuple[float, 
                 named = window[next_line:num.start(1)]
                 if not named.strip() and re.match(r"[.)]\s", window[num.end(1):]):
                     break  # the marker of a numbered list ('... you would need to:' over '1. Run ...')
-                if re.fullmatch(r"\s*(?:\$\$?\s*)?[A-Za-z](?:_\{?[\w,-]+\}?)?\s*=\s*", named):
+                if re.fullmatch(r"\s*(?:\$\$?\s*|\*\*|__)?[A-Za-z](?:_\{?[\w,-]+\}?)?\s*=\s*", named):
                     # the label's value as an equation of its symbol ('$$R_{max} = 1149.7 ...', and deepseek B03's
                     # '$$M_{X,1-3} = 0.0005 + 0.8880 + 0.0092 = 89.77 %$$'), not a sub-item
                     symbol_equation = True
@@ -341,7 +378,10 @@ def _first_claim(metric: str, pattern: str, text: str) -> Optional[Tuple[float, 
             if operand and (operand.group().strip() != "=" or _TERM_BEFORE.search(text[line_start:start])):
                 continue  # a term of a calculation or one dimension of a pair; the value follows
             context = text[line_start:start]
-            if _OTHER_STATE.search(context) and not re.search(r"\bfinal\b", context, re.IGNORECASE):
+            # 'delivered' marks the final state as 'final' does (minimax ablated A07, campaign 2, which could not
+            # resize: 'Governing DCR of the delivered (trial-section) design: 1.311' was skipped as a trial value
+            # and the DCR of a hand check of other sections, 0.76, was read instead)
+            if _OTHER_STATE.search(context) and not re.search(r"\b(?:final|delivered)\b", context, re.IGNORECASE):
                 break  # a trial or earlier design state; the delivered value comes elsewhere
             if _WITHHELD_MARK.search(window[:num.start(1)]):
                 return _WITHHELD
@@ -368,6 +408,9 @@ def _normalize(text: str) -> str:
     previous = None
     while previous != norm:
         previous = norm
+        # a braced subscript inside a wrapper is unwrapped first (minimax ablated B01, campaign 2:
+        # '$$\boxed{R_{z,max} = 1{,}149.8\ \text{kN}}$$' kept its \boxed and was not read)
+        norm = re.sub(r"_\{([^{}]*)\}", r"_\1", norm)
         norm = re.sub(r"\\(?:text|mathrm|mathbf|rm|mbox|boxed)\s*\{([^{}]*)\}", r" \1", norm)
     norm = re.sub(r"_\{([^{}]*)\}", r"_\1", norm)  # subscripts: T_{1}
     norm = re.sub(r"\\[,;:! ]|\$", " ", norm)
@@ -423,7 +466,10 @@ def _mode_table_value(
                 continue
             cells = _cells(line)
             if columns is None:
-                mode_col = next((i for i, c in enumerate(cells) if re.fullmatch(r"modes?(?:\s*(?:#|no\.?))?", c, re.I)), None)
+                mode_col = next(
+                    (i for i, c in enumerate(cells) if re.fullmatch(r"modes?(?:\s*(?:#|no\.?|included|considered))?", c, re.I)),
+                    None,
+                )
                 matching = [i for i, c in enumerate(cells) if re.search(header, c, re.I)]
                 if prefer:
                     matching = [i for i in matching if re.search(prefer, cells[i], re.I)] or matching
@@ -465,6 +511,35 @@ def _tabled_mass_ratio(metric: str, raw_scopes: Sequence[str]) -> Optional[Tuple
                              cumulative=True)
 
 
+def _tabled_force(metric: str, raw_scopes: Sequence[str]) -> Optional[Tuple[float, str]]:
+    """A force from a markdown table with one data row whose header cell names the metric (deepseek ablated C01:
+    '| Load case | Base shear Vx | Vy | Total vertical reaction |' over '| EQx | **132.37 kN** | 0.00 kN | 0.00 kN |').
+    A table of several rows (load cases, members, iterations) does not say which row is the claim."""
+    if metric not in _FORCE_METRICS:
+        return None
+    for scope in raw_scopes:
+        lines = scope.splitlines()
+        i = 0
+        while i < len(lines):
+            if not lines[i].lstrip().startswith("|"):
+                i += 1
+                continue
+            j = i
+            while j < len(lines) and lines[j].lstrip().startswith("|"):
+                j += 1
+            rows = [_cells(line) for line in lines[i:j]]
+            header = rows[0]
+            data = [r for r in rows[1:] if not all(re.fullmatch(r":?-+:?", c) or not c for c in r)]
+            columns = [k for k, cell in enumerate(header)
+                       if any(re.search(p, cell, re.IGNORECASE) for p in _PATTERNS[metric])]
+            if columns and len(data) == 1 and len(data[0]) > columns[0]:
+                value = re.fullmatch(_NUM + r"\s*([A-Za-z]+)?", data[0][columns[0]])
+                if value is not None and (value.group(2) or "").lower() in _ALLOWED_UNITS[metric]:
+                    return float(value.group(1).replace(",", "")), (value.group(2) or "").lower()
+            i = j
+    return None
+
+
 def _final_table_columns(text: str) -> str:
     """Tables that compare design states keep only their final column (gemma A07: '| Parameter | Trial Design | Final
     Design |' gave '| **Governing DCR** | **1.311** | **0.985** |', and the trial value came first)."""
@@ -497,6 +572,7 @@ def parse_numerical_claims_from_text(text: str, units: str = "kN, m") -> Dict[st
     for metric in _PATTERNS:
         found = (_listed_period(metric, scopes) or _claimed_value(metric, scopes)
                  or _tabled_period(metric, raw_scopes) or _tabled_mass_ratio(metric, raw_scopes)
+                 or _tabled_force(metric, raw_scopes)
                  # only sections about the trial design state the value: the delivered design is the trial one
                  # (minimax ablated A08, which could not resize, reported 'Governing DCR = 1.488' under '4. ACI 318-25
                  # design check of the trial sections')
@@ -545,7 +621,7 @@ def _grid_matches(actual: List[float], spacings: List[float], tol: float) -> boo
 
 LOAD_TOTAL_TOLERANCE = 0.02  # relative, on the dead / live / partition resultants
 S1_LOWER_BOUND_THRESHOLD = 0.6  # g; ASCE 7-22 Eq. 12.8-7 applies where S1 >= 0.6 g
-MATERIAL_TOLERANCE = 0.01  # relative, on f'c, fy and the allowable bearing pressure
+MATERIAL_TOLERANCE = 0.01  # relative, on f'c, fy, the allowable bearing pressure and the soil depth
 # relative, on the concrete unit weight: the conventional 24 kN/m3 for 2,400 kg/m3 (g taken as 10 m/s2) is 1.97 % high
 UNIT_WEIGHT_TOLERANCE = 0.025
 STANDARD_GRAVITY = 9.80665  # m/s2: the spec's concrete density (kg/m3) as a unit weight
@@ -699,6 +775,28 @@ def materials_match(project: Any, case: BenchmarkCase) -> Tuple[bool, Dict[str, 
     return ok, found
 
 
+def _foundation_input_values(case: BenchmarkCase, project: Any, checks: List[Tuple[int, Dict[str, Any], Any]],
+                             key: str, quantity: str) -> List[Optional[float]]:
+    """Foundation input ``key`` of each design check in ``checks`` (spec units): the argument of the call, or for the
+    last check the value stored on the design result (a default the call did not state)."""
+    units = getattr(getattr(project, "metadata", None), "units", None) or "kN, m"
+    values: List[Optional[float]] = []
+    for k, (_, args, _) in enumerate(checks):
+        try:
+            if args.get(key) is not None:
+                value = float(args[key])
+            elif k == len(checks) - 1:  # the stored design result is the last check's
+                inputs = getattr(getattr(project, "design_result", None), "inputs", None)
+                value = getattr(inputs, key, None)
+                value = None if value is None else float(value)
+            else:
+                value = None
+            values.append(None if value is None else value * conversion_factor(units, case.spec.units, quantity))
+        except (TypeError, ValueError):
+            values.append(None)
+    return values
+
+
 def bearing_pressure_match(case: BenchmarkCase, project: Any,
                            tool_calls: List[Tuple[str, Dict[str, Any]]]) -> Tuple[bool, Optional[float]]:
     """A design check of the final model (``_final_model_design_checks``) used the prompt's allowable soil bearing
@@ -706,26 +804,36 @@ def bearing_pressure_match(case: BenchmarkCase, project: Any,
     checks = _final_model_design_checks(tool_calls)
     if not checks:
         return False, None
-    units = getattr(getattr(project, "metadata", None), "units", None) or "kN, m"
     target = case.spec.foundation.allowable_bearing_pressure
-    values: List[Optional[float]] = []
-    for k, (_, args, _) in enumerate(checks):
-        try:
-            if args.get("allowable_bearing_pressure") is not None:
-                value = float(args["allowable_bearing_pressure"])
-            elif k == len(checks) - 1:  # the stored design result is the last check's
-                inputs = getattr(getattr(project, "design_result", None), "inputs", None)
-                value = getattr(inputs, "allowable_bearing_pressure", None)
-                value = None if value is None else float(value)
-            else:
-                value = None
-            values.append(None if value is None else value * conversion_factor(units, case.spec.units, "pressure"))
-        except (TypeError, ValueError):
-            values.append(None)
+    values = _foundation_input_values(case, project, checks, "allowable_bearing_pressure", "pressure")
     match = next((v for v in values if _close(v, target)), None)
     if match is not None:
         return True, round(match, 3)
     return False, None if values[-1] is None else round(values[-1], 3)
+
+
+def soil_overburden_match(case: BenchmarkCase, project: Any,
+                          tool_calls: List[Tuple[str, Dict[str, Any]]]) -> Tuple[bool, Dict[str, Optional[float]]]:
+    """A design check of the final model used the prompt's soil above the footings: its depth (within 1 %) and unit
+    weight (within 2.5 %, as for the concrete), both in one check. A check that states neither takes the tool
+    defaults, which pass where they are the prompt's values. Returns the verdict and the values (spec units) of that
+    check, else the last check's."""
+    checks = _final_model_design_checks(tool_calls)
+    if not checks:
+        return False, {"soil_depth": None, "soil_unit_weight": None}
+    foundation = case.spec.foundation
+    depths = _foundation_input_values(case, project, checks, "soil_depth", "length")
+    weights = _foundation_input_values(case, project, checks, "soil_unit_weight", "weight_density")
+
+    def _found(k: int) -> Dict[str, Optional[float]]:
+        return {"soil_depth": None if depths[k] is None else round(depths[k], 4),
+                "soil_unit_weight": None if weights[k] is None else round(weights[k], 4)}
+
+    for k in range(len(checks)):
+        if (_close(depths[k], foundation.soil_depth)
+                and _close(weights[k], foundation.soil_unit_weight, UNIT_WEIGHT_TOLERANCE)):
+            return True, _found(k)
+    return False, _found(len(checks) - 1)
 
 
 def evaluate_prompt_to_schema_fidelity(
@@ -761,6 +869,9 @@ def evaluate_prompt_to_schema_fidelity(
             details["materials_match"], details["materials"] = materials_match(project, case)
             details["bearing_pressure_match"], details["bearing_pressure"] = bearing_pressure_match(
                 case, project, tool_calls or [])
+            if spec.foundation.soil_depth is not None and spec.foundation.soil_unit_weight is not None:
+                details["soil_overburden_match"], details["soil_overburden"] = soil_overburden_match(
+                    case, project, tool_calls or [])
             fixture_cases = {f.id.lower() for f in fixture.load_cases}
             details["no_unspecified_load_cases"] = not any(
                 lc.id.lower() not in fixture_cases for lc in model.load_cases
@@ -859,6 +970,8 @@ def evaluate_prompt_to_schema_fidelity(
                 for g, ref in lateral_ref.items())
             details["seismic_load_totals"] = {g: round(v, 3) for g, v in lateral.items()}
 
+    # Final design checks on the specified envelope (static or spectrum); the analysis basis is judged on them
+    on_envelope: List[Tuple[str, Dict[str, Any]]] = []
     seis = spec.seismic
     if seis is not None:
         calls = tool_calls or []
@@ -912,11 +1025,12 @@ def evaluate_prompt_to_schema_fidelity(
         # one-direction analyses lack the orthogonal combination of direction='both')
         if spec.analysis == "rsa" and (case.deliverables.design != "none" or spec.initial_sections is not None):
             want = "both" if len(seis.directions) > 1 else seis.directions[0]
-            details["design_on_spectrum_envelope"] = any(
-                basis is not None and basis[0] == "rsa_envelope" and _ok(basis[1])
+            on_envelope = [
+                basis for _, _, basis in _final_model_design_checks(calls)
+                if basis is not None and basis[0] == "rsa_envelope" and _ok(basis[1])
                 and basis[1].get("direction", "x") == want
-                for _, _, basis in _final_model_design_checks(calls)
-            )
+            ]
+            details["design_on_spectrum_envelope"] = bool(on_envelope)
 
         # ELF combinations are generated by the agent: Ev = 0.2 SDS D (§12.4.2.2) and the 100-30 rule (§12.5)
         # must follow the spec. (The RSA tool builds its own combinations from its sds argument.)
@@ -941,6 +1055,9 @@ def evaluate_prompt_to_schema_fidelity(
     if spec.foundation is not None:
         details["bearing_pressure_match"], details["bearing_pressure"] = bearing_pressure_match(
             case, project, tool_calls or [])
+        if spec.foundation.soil_depth is not None and spec.foundation.soil_unit_weight is not None:
+            details["soil_overburden_match"], details["soil_overburden"] = soil_overburden_match(
+                case, project, tool_calls or [])
 
     if spec.loads is not None and spec.loads.partition_weight is not None:
         partition_case = next((lc for lc in model.load_cases if lc.id == "PartitionWeight"), None)
@@ -949,19 +1066,23 @@ def evaluate_prompt_to_schema_fidelity(
     # Static design cases (gravity, ELF): a design check of the final model uses the envelope of all load
     # combinations of a static analysis (qwen designed the ELF case C06 on a response spectrum envelope instead)
     if spec.analysis == "static" and (case.deliverables.design != "none" or spec.initial_sections is not None):
-        details["design_on_static_envelope"] = any(
-            basis is not None and basis[0] == "run_analysis"
+        on_envelope = [
+            basis for _, _, basis in _final_model_design_checks(tool_calls or [])
+            if basis is not None and basis[0] == "run_analysis"
             and basis[1].get("analysis_type", "static") == "static"
             and str(basis[1].get("load_case_id") or "envelope").upper() in _FULL_ENVELOPE
-            for _, _, basis in _final_model_design_checks(tool_calls or [])
-        )
+        ]
+        details["design_on_static_envelope"] = bool(on_envelope)
 
     # A design check of the final model uses an analysis with cracked sections (Table 6.6.3.1.1) and slenderness
-    # (§6.6.4)
+    # (§6.6.4): the same check that uses the specified envelope, when one does (mistral ablated A08, campaign 2: the
+    # check on the spectrum envelope had no second-order analysis, and a static check on a second-order analysis
+    # met the rule in its place); otherwise any check of the final model, so that a missing envelope fails once
     if case.deliverables.design != "none" or spec.initial_sections is not None:
+        bases = on_envelope or [basis for _, _, basis in _final_model_design_checks(tool_calls or [])]
         details["design_analysis_basis_match"] = any(
             basis is not None and bool(basis[1].get("cracked_sections")) and bool(basis[1].get("second_order"))
-            for _, _, basis in _final_model_design_checks(tool_calls or [])
+            for basis in bases
         )
 
     return all(v for v in details.values() if isinstance(v, bool)), details

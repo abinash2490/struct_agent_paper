@@ -34,10 +34,10 @@ from struct_core import conversion_factor  # noqa: E402
 RESULTS = REPO_ROOT / "research_paper" / "benchmarks" / "results"
 FIGURES = REPO_ROOT / "research_paper" / "manuscript" / "figures"
 
-MODELS = ["qwen3.5:9b", "minimax-m3.1-flash:cloud", "gemma4:31b-cloud", "deepseek-v4.1-flash:cloud"]
-SHORT = {"qwen3.5:9b": "qwen3.5:9b", "minimax-m3.1-flash:cloud": "minimax-m3.1-flash",
+MODELS = ["gemma4:31b-cloud", "minimax-m3.1-flash:cloud", "deepseek-v4.1-flash:cloud", "mistral-large-4:cloud"]
+SHORT = {"mistral-large-4:cloud": "mistral-large-4", "minimax-m3.1-flash:cloud": "minimax-m3.1-flash",
          "gemma4:31b-cloud": "gemma4:31b", "deepseek-v4.1-flash:cloud": "deepseek-v4.1-flash"}
-FAMILY = {"qwen3.5:9b": "qwen", "minimax-m3.1-flash:cloud": "minimax", "gemma4:31b-cloud": "gemma",
+FAMILY = {"mistral-large-4:cloud": "mistral", "minimax-m3.1-flash:cloud": "minimax", "gemma4:31b-cloud": "gemma",
           "deepseek-v4.1-flash:cloud": "deepseek"}  # point labels of Figure 2, row labels of Figure 4
 CONFIGS = ["full_agent", "ablated", "direct_llm", "code_gen"]
 LABEL = {"full_agent": "Full agent", "ablated": "Ablated agent", "direct_llm": "Direct prompting",
@@ -81,13 +81,22 @@ def _style(ax) -> None:
 # Figure 2: code compliance against the share of wrong reported values
 # ----------------------------------------------------------------------------------------------------------------
 LABEL_OFFSET = {  # (dx, dy, ha) in points for the model label of each point, placed by hand against overlaps
-    ("deepseek-v4.1-flash:cloud", "full_agent"): (-3, 9, "left"), ("gemma4:31b-cloud", "full_agent"): (6, 0, "left"),
-    ("minimax-m3.1-flash:cloud", "full_agent"): (-3, 9, "left"), ("qwen3.5:9b", "full_agent"): (6, 0, "left"),
-    ("deepseek-v4.1-flash:cloud", "ablated"): (-3, -9, "left"), ("minimax-m3.1-flash:cloud", "ablated"): (-3, -9, "left"),
-    ("gemma4:31b-cloud", "ablated"): (6, 0, "left"), ("qwen3.5:9b", "ablated"): (6, 0, "left"),
-    ("deepseek-v4.1-flash:cloud", "direct_llm"): (6, 0, "left"), ("minimax-m3.1-flash:cloud", "direct_llm"): (0, 9, "center"),
-    ("gemma4:31b-cloud", "direct_llm"): (6, 0, "left"), ("qwen3.5:9b", "direct_llm"): (-7, 0, "right"),
-    ("deepseek-v4.1-flash:cloud", "code_gen"): (8, 0, "left"), ("gemma4:31b-cloud", "code_gen"): (0, -10, "center"),
+    ("deepseek-v4.1-flash:cloud", "full_agent"): (-6, 0, "right"),
+    ("mistral-large-4:cloud", "full_agent"): (0, 9, "center"),
+    ("gemma4:31b-cloud", "full_agent"): (6, 0, "left"),
+    ("minimax-m3.1-flash:cloud", "full_agent"): (6, 0, "left"),
+    ("mistral-large-4:cloud", "ablated"): (-6, 0, "right"),
+    ("minimax-m3.1-flash:cloud", "ablated"): (6, 0, "left"),
+    ("deepseek-v4.1-flash:cloud", "ablated"): (0, -9, "center"),
+    ("gemma4:31b-cloud", "ablated"): (6, 0, "left"),
+    ("mistral-large-4:cloud", "direct_llm"): (-7, 0, "right"),
+    ("minimax-m3.1-flash:cloud", "direct_llm"): (0, 9, "center"),
+    ("gemma4:31b-cloud", "direct_llm"): (6, 0, "left"),
+    ("deepseek-v4.1-flash:cloud", "direct_llm"): (6, 0, "left"),
+    ("deepseek-v4.1-flash:cloud", "code_gen"): (-7, 0, "right"),
+    ("gemma4:31b-cloud", "code_gen"): (0, -10, "center"),
+    ("mistral-large-4:cloud", "code_gen"): (7, 0, "left"),
+    ("minimax-m3.1-flash:cloud", "code_gen"): (-7, 0, "right"),
 }
 
 
@@ -101,7 +110,7 @@ def figure_ccr_chr(runs) -> None:
                 continue
             claims = sum(r.get("claims_made_count", 0) for r in s["case_results"])
             if claims == 0:
-                continue  # no reported value to score (minimax and qwen code generation)
+                continue  # no reported value to score
             chr_, ccr = s["calculation_hallucination_rate_pct"], s["code_compliance_rate_pct"]
             hollow = cfg == "code_gen"
             ax.scatter(chr_, ccr, s=46, marker=MARKER[cfg], zorder=3,
@@ -110,7 +119,7 @@ def figure_ccr_chr(runs) -> None:
             dx, dy, ha = LABEL_OFFSET.get((model, cfg), (6, 0, "left"))
             ax.annotate(FAMILY[model], (chr_, ccr), xytext=(dx, dy), textcoords="offset points", fontsize=6.5,
                         color=INK_2, ha=ha, va="center")
-    ax.set_xlim(-2, 66)
+    ax.set_xlim(-11, 71)
     ax.set_ylim(-4, 110)
     ax.set_xlabel("Wrong reported values, CHR (%)")
     ax.set_ylabel("Compliant designs, CCR (%)")
@@ -276,10 +285,10 @@ def figure_convergence(runs) -> None:
     for ax, model in zip(axes.flat, MODELS):
         _style(ax)
         ax.axhline(1.0, color=INK, linewidth=0.8, linestyle=(0, (4, 2)), zorder=2)
-        records = {r["case_id"][:3]: r for r in runs[(model, "full_agent")]["case_results"]}
+        records = {r["case_id"][:3]: r for r in runs.get((model, "full_agent"), {}).get("case_results", [])}
         longest = 1
         for cid, (color, marker) in RESIZING.items():
-            history = records[cid].get("dcr_history") or []
+            history = records.get(cid, {}).get("dcr_history") or []
             longest = max(longest, len(history))
             checks = range(1, len(history) + 1)
             ax.plot(checks, history, color=color, linewidth=1.6, zorder=3)

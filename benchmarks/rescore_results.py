@@ -17,14 +17,20 @@ repeated re-scoring keeps the file as first produced by run_benchmarks.py).
 Usage
 -----
 python research_paper/benchmarks/rescore_results.py research_paper/benchmarks/results/results_<...>.json
+    [--replay]                    also recompute PSFR by replaying the logged tool calls
+    [--rerun-timed-out-scripts]   code_gen: execute again the saved scripts that a shorter, earlier time limit
+                                  stopped (run_benchmarks.SCRIPT_TIME_LIMIT)
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 BENCHMARKS_DIR = Path(__file__).resolve().parent
@@ -41,12 +47,17 @@ from research_paper.benchmarks.benchmark_utils import (  # noqa: E402
 from research_paper.benchmarks.case_schema import SectionPair, cases_by_id  # noqa: E402
 from research_paper.benchmarks.oracle_verifier import OracleVerifier  # noqa: E402
 from research_paper.benchmarks.run_benchmarks import (  # noqa: E402
+    SCRIPT_TIME_LIMIT,
     _parse_json_object,
+    is_answer,
     _sections_from_answer,
     build_record,
     classify_failure,
     context_limits,
+    execute_script,
+    inconsistent_usage,
     reference_load_totals,
+    script_from_reply,
     single_shot_claims,
     summarize,
 )
@@ -57,7 +68,40 @@ CARRIED = ("seed_index", "agent_concrete_volume", "turn_limit_reached", "max_pro
            "prompt_truncations", "final_response_truncated", "max_output_tokens", "output_cap_hits", "final_response_capped",
            "max_completion_tokens", "provider_error", "llm_calls", "repeated_calls", "tool_log", "final_message",
            "code_executed", "script_output", "reasoning_effort", "output_dir", "undeclared_outputs", "overwritten_files",
-           "answer_units", "replay_mismatches", "rejected_tool_calls")
+           "answer_units", "replay_mismatches", "rejected_tool_calls", "script_rerun")
+_TIMED_OUT = re.compile(r"^TimeoutExpired:.*timed out after ([\d.]+) seconds", re.DOTALL)
+
+
+def rerun_timed_out_script(r: dict, cases: dict) -> bool:
+    """Execute again, at the current ``SCRIPT_TIME_LIMIT``, a code_gen script that an earlier and shorter limit
+    stopped, and update the record as ``run_single_shot`` would have written it: the execution flag, the printed
+    output, the errors, and the wall-clock time (the earlier limit replaced by the new execution time). The script
+    is the one saved in the record, so no LLM is called. Returns whether the record was a timed-out script."""
+    if r.get("configuration") != "code_gen":
+        return False
+    timed_out = [m for m in (_TIMED_OUT.match(str(e)) for e in r.get("error_messages") or []) if m]
+    if not timed_out or float(timed_out[0].group(1)) >= SCRIPT_TIME_LIMIT:
+        return False
+    previous = float(timed_out[0].group(1))
+    errors = [e for e in r["error_messages"] if not _TIMED_OUT.match(str(e)) and not str(e).startswith("Oracle:")]
+    t0 = time.perf_counter()
+    try:
+        executed, stdout, stderr = execute_script(cases[r["case_id"]], script_from_reply(r["final_message"]))
+        if not executed:
+            errors.append(f"Script error: {stderr[-500:]}")
+    except subprocess.TimeoutExpired as exc:
+        executed, stdout = None, ""
+        errors.append(f"{type(exc).__name__}: {exc}")
+    elapsed = time.perf_counter() - t0
+    r["code_executed"] = executed
+    r["script_output"] = stdout[-4000:]
+    r["error_messages"] = errors
+    r["wall_clock_time_sec"] = round(r["wall_clock_time_sec"] - previous + elapsed, 2)
+    r["script_rerun"] = {"previous_limit_s": previous, "limit_s": SCRIPT_TIME_LIMIT,
+                         "execution_s": round(elapsed, 1), "executed": executed}
+    print(f"  {r['case_id']}: script re-executed at {SCRIPT_TIME_LIMIT:g} s (stopped at {previous:g} s before): "
+          f"{'ran to the end' if executed else 'error' if executed is False else 'stopped again'} in {elapsed:.0f} s")
+    return True
 
 
 def rescore_record(r: dict, oracle: OracleVerifier, cases: dict, replay_psfr: bool = False) -> dict:
@@ -79,7 +123,7 @@ def rescore_record(r: dict, oracle: OracleVerifier, cases: dict, replay_psfr: bo
         claims = parse_numerical_claims_from_text(answer, case.spec.units)
     res = oracle.evaluate(case.id, sections, claims)
     if single_shot:  # the recorded success of a withheld-input probe followed the old probe verdict
-        success = bool(parsed) and r.get("code_executed") is not False and res.solution.error is None
+        success = is_answer(parsed) and r.get("code_executed") is not False and res.solution.error is None
     psfr = None
     if r.get("prompt_to_schema_fidelity_passed") is not None:
         psfr = (r["prompt_to_schema_fidelity_passed"], r.get("prompt_to_schema_fidelity_details") or {})
@@ -113,8 +157,14 @@ def rescore_record(r: dict, oracle: OracleVerifier, cases: dict, replay_psfr: bo
             new[key] = r[key]
     if r.get("code_executed") is False:  # a crashed script gave no answer, whatever its comments assume or ask
         new["success"] = False
-    if "provider_error" not in r:  # recorded before the flag existed
-        new["provider_error"] = any(e.startswith("LLM Provider error") for e in errors)
+    had_error_finish = any(c.get("finish_reason") == "error" or (single_shot and inconsistent_usage(c))
+                           for c in (r.get("llm_calls") or []))
+    if "provider_error" not in r or had_error_finish:  # recorded before the flag or finish_reason='error' check
+        new["provider_error"] = (
+            bool(r.get("provider_error"))
+            or any(e.startswith("LLM Provider error") for e in errors)
+            or had_error_finish
+        )
     if r.get("llm_calls") and not single_shot:  # single-shot records keep their recorded call flags
         calls = [dict(c) for c in r["llm_calls"]]
         if r.get("turn_limit_reached") and "tools_offered" not in calls[-1]:
@@ -131,6 +181,9 @@ def main() -> None:
     parser.add_argument("results_file", help="results_*.json written by run_benchmarks.py")
     parser.add_argument("--replay", action="store_true",
                         help="Also recompute PSFR by replaying each run's logged tool calls (no LLM calls)")
+    parser.add_argument("--rerun-timed-out-scripts", action="store_true",
+                        help="code_gen: execute again, at the current time limit, the saved scripts that an earlier "
+                             "and shorter limit stopped (no LLM calls)")
     args = parser.parse_args()
     path = Path(args.results_file)
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -138,6 +191,9 @@ def main() -> None:
         sys.exit(f"{path.name}: configuration '{data.get('configuration')}' has no LLM answer; nothing to re-score.")
 
     oracle, cases = OracleVerifier(), cases_by_id()
+    if args.rerun_timed_out_scripts:
+        rerun = [r["case_id"] for r in data["case_results"] if rerun_timed_out_script(r, cases)]
+        print(f"  timed-out scripts re-executed: {len(rerun)}")
     results = [rescore_record(r, oracle, cases, replay_psfr=args.replay) for r in data["case_results"]]
     summary = summarize(results, model=data["model"], config=data["configuration"],
                         temperature=data["temperature"], seeds=data["seeds"],

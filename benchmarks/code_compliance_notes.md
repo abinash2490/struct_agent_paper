@@ -8,14 +8,7 @@ magnification, story drift and stability) is implemented, with regression tests 
 
 ## Not implemented
 
-- **Isolated footings under seismic uplift.** Footings are sized for the allowable soil pressure under the
-  ASCE 7-22 §2.4 service combinations and designed for the factored reactions (ACI 318-25 R13.2.6.1), but the
-  vertical load is the column reaction alone: the footing's own weight and the soil above it are not included. Under
-  $(0.6 - 0.14 S_{DS})D - 0.7E$, perimeter columns of the seismic cases carry little axial load with a large base
-  moment, and no isolated footing within the sizer's range keeps the resultant inside the base; the result is then
-  reported as a failed footing with a nominal DCR (the 999 ksf overturning value divided by the allowable pressure,
-  about 319 at 150 kPa). Combined footings, grade beams, and tension piles are not designed by the agent's tools.
-  Footings are not scored by the benchmark.
+- **Combined footings, grade beams, and tension piles.** Each supported column gets an isolated footing, sized for stability and the net allowable soil pressure under the ASCE 7-22 §2.4 service combinations and designed for the factored ones, with the footing's own weight and the soil above it scaled by each combination's dead-load factor. Where no isolated footing within the sizer's range works, the design fails; the tools offer no combined footing, grade beam, or pile as a remedy. Biaxial bending with soil lift-off about both axes superposes the one-way peak pressures (conservative).
 - §18.7.3.3 (columns not designed as part of the lateral system, using the alternative to strong-column/weak-beam)
   is not offered.
 - Circular columns get member design and slenderness, but no Chapter 18 or joint checks.
@@ -25,7 +18,15 @@ magnification, story drift and stability) is implemented, with regression tests 
 
 ## Simplifications (conservative)
 
-- Non-square columns use the smaller dimension and the weaker axis for joint and Chapter 18 checks.
+- Non-square columns use the smaller dimension and the weaker axis for joint shear and strong-column/weak-beam;
+  the column capacity-design shear checks both principal axes (the in-plane axis in a planar frame).
+- Frame beams carry no slab: $\sum M_{nb}$ excludes slab bars and the flange.
+- Footing one-way and two-way shear use the general provisions (size effect $\lambda_s$, $\rho_w$); ACI 318-25
+  §13.2.6.2 permits $\lambda_s = 1$ and $V_c = 2\lambda\sqrt{f'_c} b_w d$ for footings on soil.
+- Column hoops are sized up to #5, one leg per longitudinal bar.
+- The least dimensions of special moment frame members take the values of ACI 318M-25, 250 mm for the beam
+  width (§18.6.2.1(b)) and 300 mm for the column (§18.7.2.1(a)), which are 1.6 % below the 10 in. and 12 in. of
+  ACI 318-25. The prompts allow 0.25 m beams and 0.30 m columns with reference to these clauses.
 - $M_{2,\min}$ is applied about both axes at once.
 - The stability index $Q$ uses the largest $\Sigma P_u$ among the lateral combinations.
 - The column $P_u$ range covers all combinations.

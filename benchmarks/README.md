@@ -1,7 +1,7 @@
 # Structural Engineering Benchmark Suite & Execution Harness
 
 Benchmark, harness, oracle, and analysis tools for the paper
-**"A Neuro-Symbolic Large Language Model Agent for the Analysis, Design, and Detailing of Reinforced Concrete Frames: Framework and Oracle-Based Benchmark"** (submitted to *Automation in Construction*).
+**"Explicit engineering knowledge in large language model agents for reinforced concrete frame design: a neuro-symbolic architecture and oracle-based evaluation"** (submitted to *Advanced Engineering Informatics*).
 
 ---
 
@@ -66,9 +66,13 @@ analysis regime rather than to geometry:
 
 **Common basis.** f'c = 27.6 MPa, fy = 414 MPa, 2400 kg/m³ concrete (C02: the ETABS model's f'c = 30 MPa, with fy
 stated in the prompt); every design or check case states a net allowable soil bearing pressure of 150 kPa (D01: 3 ksf)
-for the isolated footings, which `run_design` sizes and designs but which are not scored (`spec.foundation`; in the
-seismic cases the footings of perimeter columns fail under the ASD uplift combination, see
-`code_compliance_notes.md`); floor dead load 5.1 kPa (slab + finishes) plus
+and the soil above the isolated footings, 0.5 m of 18 kN/m³ (D01: 1.5 ft of 115 pcf) (`spec.foundation`); `run_design`
+sizes and designs the footings with their own weight and that soil, and a design whose footings cannot be made to
+pass is not compliant (a passing footing does not enter the governing DCR, as the prompts state, see
+`code_compliance_notes.md`; the oracle reports the footing concrete volume separately from the frame volume that
+the economy ratio compares). The probes D03 and D04 state the same soil data, so that the story height (D03) is
+the only missing input; their footings are not scored (`spec.foundation` is null);
+floor dead load 5.1 kPa (slab + finishes) plus
 self-weight; ASCE 7-22 Table 4.3-1 live loads; seismic mass = dead load only (§12.7.2); RC special moment frames
 (R = 8) at SDS ≥ 0.75 g and intermediate moment frames (R = 5) at SDC C; seismic combinations with ρ = 1.0 and
 Ev = 0.2·SDS·D; RSA combined with gravity through the same LRFD combinations (sign-less spectral response).
@@ -105,10 +109,10 @@ python "research_paper/benchmarks/generate_reference_solutions.py" --cases A02_F
 |---|---|
 | TCR | mandatory tools succeeded, a model exists, and every requested file exists at its path and is valid (DXF entities; exported CAE model matches the fixture) |
 | CCR | oracle governing DCR ≤ 1.0 on the canonical model, no design-space violation, and, for tool-using agents, a final `run_design` check on an analysis of the delivered model (an analysis run before a later change of sections or loads does not count; see `DesignCheckTracker`); over design cases excluding the D02–D04 probes |
-| CHR | share of claimed metrics (among those the prompt requests) off by more than 10 % from the oracle |
+| CHR | share of claimed metrics (among those the prompt requests) off by more than 10 % from the oracle. Not scored where the structure is undetermined (D03, D04, in every configuration). In D02 a value is compared with the delivered sections and, when these exceed the stated limit, also with the sections reduced to the limit; the smaller error counts. A claimed governing DCR is also compared with the largest demand-capacity ratio when a met proportion limit of members or joints governs (`oracle_verifier.DIMENSION_RULES`, e.g. a 0.25 m SMF beam at the 250 mm width limit) |
 | Claim completeness | claimed / requested metrics |
-| PSFR | the configuration's model reproduces the spec: grid coordinates, story heights, column count, supports, gravity cases (including the partition weight) with dead/live totals within 2 % of the oracle model's (partition totals too where the case uses a seismic weight), no lateral loads or seismic basis in gravity-only cases, seismic/record parameters (S1 where Eq. 12.8-7 applies, S1 ≥ 0.6 g), ELF seismic load cases and combination inputs (E_v, 100–30 rule), the final model's load combinations in static design cases, the materials of the frame sections (concrete f'c and longitudinal and transverse fy within 1 %, unit weight within 2.5 %, so that the conventional 24 kN/m³ for 2,400 kg/m³ passes), and for design cases the cracked-section, second-order analysis basis, and the final model's design checks: their analysis (static designs: the envelope of all combinations of a static analysis; RSA designs: the spectrum envelope in the specified directions) and their allowable bearing pressure (within 1 %). R and Ie count as the tools derive them when not passed (ELF R from the system, Ie from the Risk Category). Tool parameters are read from successful calls only |
-| Probe behavior | D02 reports infeasibility, D03 states an assumption or asks, D04 flags the contradiction |
+| PSFR | the configuration's model reproduces the spec: grid coordinates, story heights, column count, supports, gravity cases (including the partition weight) with dead/live totals within 2 % of the oracle model's (partition totals too where the case uses a seismic weight), no lateral loads or seismic basis in gravity-only cases, seismic/record parameters (S1 where Eq. 12.8-7 applies, S1 ≥ 0.6 g), ELF seismic load cases and combination inputs (E_v, 100–30 rule), the final model's load combinations in static design cases, the materials of the frame sections (concrete f'c and longitudinal and transverse fy within 1 %, unit weight within 2.5 %, so that the conventional 24 kN/m³ for 2,400 kg/m³ passes), and for design cases the cracked-section, second-order analysis basis, and the final model's design checks: their analysis (static designs: the envelope of all combinations of a static analysis; RSA designs: the spectrum envelope in the specified directions) their allowable bearing pressure (within 1 %), and the soil above the footings (depth within 1 %, unit weight within 2.5 %). R and Ie count as the tools derive them when not passed (ELF R from the system, Ie from the Risk Category). Tool parameters are read from successful calls only |
+| Probe behavior | D02 reports infeasibility and claims no compliant design within the limit (sections beyond the limit may be left on the model or proposed as the remedy, provided the response states that the limit cannot be met and not only that a section fails; any other departure from the design space fails), D03 states an assumption about the missing story height or asks for it (an assumption about something else, such as a reported default, does not count), D04 flags the contradiction |
 | N_iter | design checks until the first compliant design in resizing cases |
 | η_vol | concrete volume / minimum-volume baseline volume (compliant designs only) |
 
@@ -116,9 +120,9 @@ python "research_paper/benchmarks/generate_reference_solutions.py" --cases A02_F
 
 ## Running
 
-The paper's results come from one run per case and configuration (seed 42) of four models: `qwen3.5:9b` (local
-Ollama), `minimax-m3.1-flash:cloud`, `gemma4:31b-cloud`, and `deepseek-v4.1-flash:cloud` (Ollama Cloud). Agent runs
-need `--temperature 0.2`: the harness defaults to 0.2 only when `--seeds` is above 1.
+The paper's results come from one run per case and configuration (seed 42) of four Ollama Cloud models: `gemma4:31b-cloud`,
+`minimax-m3.1-flash:cloud`, `deepseek-v4.1-flash:cloud`, and `mistral-large-4:cloud`. All LLM runs
+use temperature 0.2 (the harness defaults to 0.2 for all LLM configurations).
 
 ```powershell
 conda activate structeng
@@ -128,8 +132,8 @@ python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --
 python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --config ablated --cases all --seeds 1 --temperature 0.2
 
 # One group or selected cases
-python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases B_3D --seeds 1 --temperature 0.2 --timeout 5400
-python "research_paper/benchmarks/run_benchmarks.py" --model qwen3.5:9b --cases A05,C03 --seeds 1 --temperature 0.2 --timeout 5400
+python "research_paper/benchmarks/run_benchmarks.py" --model mistral-large-4:cloud --cases B_3D --seeds 1 --temperature 0.2
+python "research_paper/benchmarks/run_benchmarks.py" --model mistral-large-4:cloud --cases A05,C03 --seeds 1 --temperature 0.2
 
 # Single-shot baselines (plan images and CAE file text are given to them too)
 python "research_paper/benchmarks/run_benchmarks.py" --model gemma4:31b-cloud --config direct_llm --cases all --seeds 1

@@ -14,7 +14,7 @@
       "label": "Easy",
       "score": 3
     },
-    "prompt": "Design a 2D single-bay, single-story reinforced concrete portal frame with a 6.0 m span, 3.5 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 4.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Generate the CAD drawing as 'research_paper/drawings/A01_portal_frame.dxf'. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "prompt": "Design a 2D single-bay, single-story reinforced concrete portal frame with a 6.0 m span, 3.5 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 4.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Generate the CAD drawing as 'research_paper/drawings/A01_portal_frame.dxf'. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -42,7 +42,9 @@
         "tributary_width": 4.0
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -74,7 +76,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.3,
@@ -96,7 +98,8 @@
         "governing_member_type": "beam",
         "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
       },
-      "concrete_volume": 1.305
+      "concrete_volume": 1.305,
+      "footing_volume": 1.8000000000000003
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -112,6 +115,7 @@
         ]
       },
       "concrete_volume": 1.305,
+      "footing_volume": 1.8000000000000003,
       "design": {
         "governing_dcr": 0.9822,
         "governing_member_id": "B_1_1",
@@ -137,7 +141,7 @@
       "label": "Easy",
       "score": 2
     },
-    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -169,7 +173,9 @@
         "tributary_width": 5.0
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -195,7 +201,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.35,
@@ -217,7 +223,8 @@
         "governing_member_type": "beam",
         "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
       },
-      "concrete_volume": 10.452
+      "concrete_volume": 10.452,
+      "footing_volume": 8.566
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -233,6 +240,7 @@
         ]
       },
       "concrete_volume": 10.452,
+      "footing_volume": 8.566,
       "design": {
         "governing_dcr": 0.9986,
         "governing_member_id": "B_1_3",
@@ -325,7 +333,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.45,
@@ -361,7 +369,7 @@
       "label": "Easy",
       "score": 3
     },
-    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete intermediate moment frame (R = 5, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.45 g, SD1 = 0.18 g and S1 = 0.11 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for intermediate moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete intermediate moment frame (R = 5, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.45 g, SD1 = 0.18 g and S1 = 0.11 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for intermediate moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -411,7 +419,9 @@
         "damping_ratio": 0.05
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -439,7 +449,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.4,
@@ -461,7 +471,8 @@
         "governing_member_type": "frame",
         "governing_limit_state": "Joint 6 (x): joint shear (ACI 318-25 §18.4.4.7)"
       },
-      "concrete_volume": 15.478
+      "concrete_volume": 15.478,
+      "footing_volume": 11.430500000000002
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -477,6 +488,7 @@
         ]
       },
       "concrete_volume": 15.478,
+      "footing_volume": 11.430500000000002,
       "design": {
         "governing_dcr": 0.9879,
         "governing_member_type": "frame",
@@ -501,7 +513,7 @@
       "label": "Medium",
       "score": 4
     },
-    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction with the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction with the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "rsa",
@@ -552,7 +564,9 @@
         "modal_combination": "CQC"
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -580,29 +594,31 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-29)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.45,
           0.45
         ],
         "beam": [
-          0.3,
+          0.25,
           0.7
         ]
       },
       "metrics": {
-        "total_weight": 1579.6202,
-        "base_shear": 210.9525,
-        "fundamental_period": 0.6239,
-        "governing_dcr": 0.985
+        "total_weight": 1542.5511,
+        "base_shear": 206.3189,
+        "fundamental_period": 0.6405,
+        "governing_dcr": 1.0
       },
       "design": {
-        "governing_dcr": 0.985,
-        "governing_member_type": "frame",
-        "governing_limit_state": "Joint 10 (x): strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb) (ACI 318-25 §18.7.3.2)"
+        "governing_dcr": 1.0,
+        "governing_member_id": "B_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "concrete_volume": 18.36
+      "concrete_volume": 16.785,
+      "footing_volume": 17.125
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -613,17 +629,19 @@
           0.45
         ],
         "beam": [
-          0.3,
+          0.25,
           0.7
         ]
       },
-      "concrete_volume": 18.36,
+      "concrete_volume": 16.785,
+      "footing_volume": 17.125,
       "design": {
-        "governing_dcr": 0.9863,
-        "governing_member_type": "frame",
-        "governing_limit_state": "Joint 10 (x): strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb) (ACI 318-25 §18.7.3.2)"
+        "governing_dcr": 1.0,
+        "governing_member_id": "B_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "evaluations": 220,
+      "evaluations": 160,
       "candidates": 2451
     }
   },
@@ -727,7 +745,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.5,
@@ -740,7 +758,7 @@
       },
       "metrics": {
         "total_weight": 1628.8104,
-        "base_shear": 1211.4311,
+        "base_shear": 1211.4313,
         "fundamental_period": 0.432,
         "peak_roof_displacement": 0.0469
       },
@@ -762,7 +780,7 @@
       "label": "Medium",
       "score": 4
     },
-    "prompt": "Design a 2D single-bay, single-story reinforced concrete portal frame with a 7.0 m span, 3.5 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and heavy-storage live load 11.97 kPa (ASCE 7-22 Table 4.3-1) over a 6.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Start from the preliminary trial sections 0.40 m × 0.40 m columns and 0.30 m wide × 0.60 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Generate the CAD drawing as 'research_paper/drawings/A07_portal_frame.dxf'. Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "prompt": "Design a 2D single-bay, single-story reinforced concrete portal frame with a 7.0 m span, 3.5 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and heavy-storage live load 11.97 kPa (ASCE 7-22 Table 4.3-1) over a 6.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Start from the preliminary trial sections 0.40 m × 0.40 m columns and 0.30 m wide × 0.60 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Generate the CAD drawing as 'research_paper/drawings/A07_portal_frame.dxf'. Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -800,7 +818,9 @@
         "tributary_width": 6.0
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -833,7 +853,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.45,
@@ -856,7 +876,8 @@
         "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
       },
       "initial_dcr": 1.311,
-      "concrete_volume": 2.905
+      "concrete_volume": 2.905,
+      "footing_volume": 8.112000000000002
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -872,6 +893,7 @@
         ]
       },
       "concrete_volume": 2.905,
+      "footing_volume": 8.112000000000002,
       "design": {
         "governing_dcr": 0.9871,
         "governing_member_id": "B_1_1",
@@ -897,7 +919,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction with the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Start from the preliminary trial sections 0.30 m × 0.30 m columns and 0.25 m wide × 0.40 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s) and the governing DCR.",
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 5.0 m, 6.0 m and 4.0 m (left to right), story heights of 4.0 m (ground story), 3.5 m and 3.5 m, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction with the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Start from the preliminary trial sections 0.30 m × 0.30 m columns and 0.25 m wide × 0.40 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "rsa",
@@ -958,7 +980,9 @@
         "modal_combination": "CQC"
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -987,30 +1011,32 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-29)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.45,
           0.45
         ],
         "beam": [
-          0.3,
+          0.25,
           0.7
         ]
       },
       "metrics": {
-        "total_weight": 1579.6202,
-        "base_shear": 210.9525,
-        "fundamental_period": 0.6239,
-        "governing_dcr": 0.985
+        "total_weight": 1542.5511,
+        "base_shear": 206.3189,
+        "fundamental_period": 0.6405,
+        "governing_dcr": 1.0
       },
       "design": {
-        "governing_dcr": 0.985,
-        "governing_member_type": "frame",
-        "governing_limit_state": "Joint 10 (x): strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb) (ACI 318-25 §18.7.3.2)"
+        "governing_dcr": 1.0,
+        "governing_member_id": "B_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
       "initial_dcr": 1.451,
-      "concrete_volume": 18.36
+      "concrete_volume": 16.785,
+      "footing_volume": 17.125
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -1021,17 +1047,19 @@
           0.45
         ],
         "beam": [
-          0.3,
+          0.25,
           0.7
         ]
       },
-      "concrete_volume": 18.36,
+      "concrete_volume": 16.785,
+      "footing_volume": 17.125,
       "design": {
-        "governing_dcr": 0.9863,
-        "governing_member_type": "frame",
-        "governing_limit_state": "Joint 10 (x): strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb) (ACI 318-25 §18.7.3.2)"
+        "governing_dcr": 1.0,
+        "governing_member_id": "B_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "evaluations": 220,
+      "evaluations": 160,
       "candidates": 2451
     }
   },
@@ -1118,7 +1146,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.45,
@@ -1151,7 +1179,7 @@
       "label": "Easy",
       "score": 3
     },
-    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -1186,7 +1214,9 @@
         "live_basis": "ASCE 7-22 Table 4.3-1 office 50 psf + 15 psf partitions"
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -1212,7 +1242,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.35,
@@ -1234,7 +1264,8 @@
         "governing_member_type": "column",
         "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
       },
-      "concrete_volume": 38.876
+      "concrete_volume": 38.876,
+      "footing_volume": 18.6765
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -1250,6 +1281,7 @@
         ]
       },
       "concrete_volume": 38.876,
+      "footing_volume": 18.6765,
       "design": {
         "governing_dcr": 0.988,
         "governing_member_id": "C_2_1_3",
@@ -1345,7 +1377,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.5,
@@ -1381,7 +1413,7 @@
       "label": "Medium",
       "score": 4
     },
-    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads separately in the X and Y directions for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.2 g, SD1 = 0.6 g and S1 = 0.5 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Include the orthogonal combinations 1.0Ex ± 0.3Ey and 0.3Ex ± 1.0Ey (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads separately in the X and Y directions for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.2 g, SD1 = 0.6 g and S1 = 0.5 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Include the orthogonal combinations 1.0Ex ± 0.3Ey and 0.3Ex ± 1.0Ey (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -1435,7 +1467,9 @@
         "damping_ratio": 0.05
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -1463,52 +1497,54 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
-          0.5,
-          0.5
+          0.45,
+          0.45
         ],
         "beam": [
-          0.3,
-          0.45
+          0.25,
+          0.55
         ]
       },
       "metrics": {
-        "total_weight": 3972.712,
-        "max_base_reaction": 1123.6127,
-        "base_shear": 629.388,
-        "governing_dcr": 0.995
+        "total_weight": 3840.4105,
+        "max_base_reaction": 1122.2724,
+        "base_shear": 609.5424,
+        "governing_dcr": 1.0
       },
       "design": {
-        "governing_dcr": 0.995,
-        "governing_member_id": "C_4_3_1",
-        "governing_member_type": "column",
-        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+        "governing_dcr": 1.0,
+        "governing_member_id": "BX_1_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "concrete_volume": 68.033
+      "concrete_volume": 62.411,
+      "footing_volume": 62.54500000000001
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
       "feasible": true,
       "sections": {
         "column": [
-          0.5,
-          0.5
+          0.45,
+          0.45
         ],
         "beam": [
-          0.3,
-          0.45
+          0.25,
+          0.55
         ]
       },
-      "concrete_volume": 68.033,
+      "concrete_volume": 62.411,
+      "footing_volume": 62.54500000000001,
       "design": {
-        "governing_dcr": 0.995,
-        "governing_member_id": "C_4_3_1",
-        "governing_member_type": "column",
-        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+        "governing_dcr": 1.0,
+        "governing_member_id": "BX_1_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "evaluations": 100,
+      "evaluations": 80,
       "candidates": 2451
     }
   },
@@ -1527,7 +1563,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a bi-directional response spectrum analysis, with the X and Y directions combined, using the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Combine the two directions with the 100%-30% rule (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a bi-directional response spectrum analysis, with the X and Y directions combined, using the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Combine the two directions with the 100%-30% rule (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "rsa",
@@ -1582,7 +1618,9 @@
         "modal_combination": "CQC"
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -1610,7 +1648,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.4,
@@ -1633,7 +1671,8 @@
         "governing_member_type": "beam",
         "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
       },
-      "concrete_volume": 63.937
+      "concrete_volume": 63.937,
+      "footing_volume": 49.246500000000005
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -1649,6 +1688,7 @@
         ]
       },
       "concrete_volume": 63.937,
+      "footing_volume": 49.246500000000005,
       "design": {
         "governing_dcr": 1.0,
         "governing_member_id": "BY_2_1_2",
@@ -1674,7 +1714,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction using the 5%-damped elastic response spectrum of the 1989 Loma Prieta record (Corralitos station, component 000, PEER NGA RSN 753; accelerations in g) in 'research_paper/benchmarks/fixtures/ground_motions/RSN753_LOMAP_CLS000.AT2', with CQC modal combination and forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and no vertical seismic effect (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a response spectrum analysis in the X direction using the 5%-damped elastic response spectrum of the 1989 Loma Prieta record (Corralitos station, component 000, PEER NGA RSN 753; accelerations in g) in 'research_paper/benchmarks/fixtures/ground_motions/RSN753_LOMAP_CLS000.AT2', with CQC modal combination and forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and no vertical seismic effect (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "rsa",
@@ -1733,7 +1773,9 @@
         }
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -1761,30 +1803,31 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.4,
           0.4
         ],
         "beam": [
-          0.3,
-          0.4
+          0.25,
+          0.45
         ]
       },
       "metrics": {
-        "total_weight": 3601.4911,
-        "base_shear": 209.7756,
-        "fundamental_period": 0.9724,
-        "governing_dcr": 0.9793
+        "total_weight": 3555.6842,
+        "base_shear": 219.9751,
+        "fundamental_period": 0.9306,
+        "governing_dcr": 1.0
       },
       "design": {
-        "governing_dcr": 0.9793,
-        "governing_member_id": "BX_2_1_3",
+        "governing_dcr": 1.0,
+        "governing_member_id": "BX_1_1_1",
         "governing_member_type": "beam",
-        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "concrete_volume": 52.26
+      "concrete_volume": 50.314,
+      "footing_volume": 22.949500000000008
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -1795,16 +1838,17 @@
           0.4
         ],
         "beam": [
-          0.3,
-          0.4
+          0.25,
+          0.45
         ]
       },
-      "concrete_volume": 52.26,
+      "concrete_volume": 50.314,
+      "footing_volume": 22.949500000000008,
       "design": {
-        "governing_dcr": 0.9793,
-        "governing_member_id": "BX_2_1_3",
+        "governing_dcr": 1.0,
+        "governing_member_id": "BX_1_1_1",
         "governing_member_type": "beam",
-        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
       "evaluations": 40,
       "candidates": 2451
@@ -1914,7 +1958,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.5,
@@ -1927,9 +1971,9 @@
       },
       "metrics": {
         "total_weight": 4430.7806,
-        "base_shear": 2532.8583,
+        "base_shear": 2434.5537,
         "fundamental_period": 0.4267,
-        "peak_roof_displacement": 0.0311
+        "peak_roof_displacement": 0.0299
       },
       "concrete_volume": 87.495
     }
@@ -1949,7 +1993,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.2 g, SD1 = 0.6 g and S1 = 0.5 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Start from the preliminary trial sections 0.30 m × 0.30 m columns and 0.25 m wide × 0.40 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN) and the governing DCR.",
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and three stories (4.0 m ground story, then 3.5 m and 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.2 g, SD1 = 0.6 g and S1 = 0.5 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Start from the preliminary trial sections 0.30 m × 0.30 m columns and 0.25 m wide × 0.40 m deep beams; check them and, if any member is overstressed, revise the sections until the design is adequate. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the governing DCR of the trial sections, and, for the final design, the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -2012,7 +2056,9 @@
         "damping_ratio": 0.05
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -2041,53 +2087,55 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
-          0.4,
-          0.4
+          0.45,
+          0.45
         ],
         "beam": [
-          0.3,
-          0.55
+          0.25,
+          0.5
         ]
       },
       "metrics": {
-        "total_weight": 3876.3322,
-        "max_base_reaction": 1149.1712,
-        "base_shear": 614.9304,
-        "governing_dcr": 0.998
+        "total_weight": 3764.0657,
+        "max_base_reaction": 1107.1781,
+        "base_shear": 598.0908,
+        "governing_dcr": 1.0
       },
       "design": {
-        "governing_dcr": 0.998,
-        "governing_member_id": "C_4_1_1",
-        "governing_member_type": "column",
-        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+        "governing_dcr": 1.0,
+        "governing_member_id": "BX_1_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
       "initial_dcr": 2.5376,
-      "concrete_volume": 63.937
+      "concrete_volume": 59.167,
+      "footing_volume": 49.04250000000001
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
       "feasible": true,
       "sections": {
         "column": [
-          0.4,
-          0.4
+          0.45,
+          0.45
         ],
         "beam": [
-          0.3,
-          0.55
+          0.25,
+          0.5
         ]
       },
-      "concrete_volume": 63.937,
+      "concrete_volume": 59.167,
+      "footing_volume": 49.04250000000001,
       "design": {
-        "governing_dcr": 0.998,
-        "governing_member_id": "C_4_1_1",
-        "governing_member_type": "column",
-        "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
+        "governing_dcr": 1.0,
+        "governing_member_id": "BX_1_1_1",
+        "governing_member_type": "beam",
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "evaluations": 80,
+      "evaluations": 60,
       "candidates": 2451
     }
   },
@@ -2106,7 +2154,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and eight stories (4.0 m ground story, then seven stories of 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a bi-directional response spectrum analysis, with the X and Y directions combined, using the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Combine the two directions with the 100%-30% rule (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
+    "prompt": "Design a 3D reinforced concrete moment frame with three bays in X (5.0 m, 6.0 m and 4.5 m), two bays in Y (6.0 m and 4.0 m), and eight stories (4.0 m ground story, then seven stories of 3.5 m), with fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Perform a bi-directional response spectrum analysis, with the X and Y directions combined, using the ASCE 7-22 design spectrum (SDS = 1.0 g, SD1 = 0.6 g, S1 = 0.5 g, TL = 8 s) and CQC modal combination, with forces divided by R/Ie for a reinforced concrete special moment frame (R = 8, Ie = 1.0) and scaled up to the ELF base shear where the modal base shear is smaller (ASCE 7-22 §12.9.1.4). Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Combine the two directions with the 100%-30% rule (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), the fundamental period T1 (s), and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "rsa",
@@ -2166,7 +2214,9 @@
         "modal_combination": "CQC"
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -2194,48 +2244,50 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
-          0.5,
-          0.5
+          0.45,
+          0.45
         ],
         "beam": [
-          0.3,
-          0.5
+          0.25,
+          0.65
         ]
       },
       "metrics": {
-        "total_weight": 10779.362,
-        "base_shear": 641.5252,
-        "fundamental_period": 1.9467,
-        "governing_dcr": 0.999
+        "total_weight": 10600.6064,
+        "base_shear": 631.4433,
+        "fundamental_period": 1.703,
+        "governing_dcr": 1.0
       },
       "design": {
-        "governing_dcr": 0.999,
-        "governing_member_id": "C_3_2_1",
+        "governing_dcr": 1.0,
+        "governing_member_id": "C_4_1_1",
         "governing_member_type": "column",
         "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
       },
-      "concrete_volume": 189.3
+      "concrete_volume": 181.705,
+      "footing_volume": 124.25450000000004
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
       "feasible": true,
       "sections": {
         "column": [
-          0.5,
-          0.5
+          0.45,
+          0.45
         ],
         "beam": [
-          0.3,
-          0.5
+          0.25,
+          0.65
         ]
       },
-      "concrete_volume": 189.3,
+      "concrete_volume": 181.705,
+      "footing_volume": 124.25450000000004,
       "design": {
-        "governing_dcr": 0.999,
-        "governing_member_id": "C_3_2_1",
+        "governing_dcr": 1.0,
+        "governing_member_id": "C_4_1_1",
         "governing_member_type": "column",
         "governing_limit_state": "Column axial-flexure (P-M) interaction (ACI 318 §22.4)"
       },
@@ -2329,7 +2381,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Import the ETABS model 'research_paper/benchmarks/fixtures/exported_seismic_frame.e2k'. Generate the ASCE 7-22 LRFD load combinations from its load cases (DEAD, SuperDead, LIVE and the seismic case EQx; redundancy factor ρ = 1.0, no vertical seismic effect), run the analysis with cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (§6.6.4), and check the existing column and beam sections and the beam-column joints (Chapter 15) against ACI 318-25 without resizing them. The model defines the concrete (f'c = 30 MPa); the reinforcement has fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Report the total dead load W = DEAD + SuperDead (kN) and the governing DCR with the governing member. Export the checked model to SAP2000 format as 'research_paper/benchmarks/results/C02_checked.s2k'.",
+    "prompt": "Import the ETABS model 'research_paper/benchmarks/fixtures/exported_seismic_frame.e2k'. Generate the ASCE 7-22 LRFD load combinations from its load cases (DEAD, SuperDead, LIVE and the seismic case EQx; redundancy factor ρ = 1.0, no vertical seismic effect), run the analysis with cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (§6.6.4), and check the existing column and beam sections and the beam-column joints (Chapter 15) against ACI 318-25 without resizing them, and design the isolated footings, which are sized to pass and are therefore not part of the governing DCR. The model defines the concrete (f'c = 30 MPa); the reinforcement has fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Report the total dead load W = DEAD + SuperDead (kN) and the governing DCR with the governing member. Export the checked model to SAP2000 format as 'research_paper/benchmarks/results/C02_checked.s2k'.",
     "spec": {
       "units": "kN, m",
       "analysis": "cae",
@@ -2345,7 +2397,9 @@
         "density_kg_m3": 2447.3
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -2376,7 +2430,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "CSI SAP2000 / ETABS (struct_link/examples, manually verified); DCR from oracle_verifier.py (2026-10-28)",
+      "source": "CSI SAP2000 / ETABS (struct_link/examples, manually verified); DCR from oracle_verifier.py (2026-11-11)",
       "metrics": {
         "total_weight": 988.96,
         "governing_dcr": 0.984
@@ -2495,7 +2549,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.45,
@@ -2528,7 +2582,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Interpret the attached ground floor plan of a two-story hostel block ('research_paper/benchmarks/fixtures/hostel_block_plan_2story.PNG'; both stories 3.2 m high, same plan on both floors). Build the 3D reinforced concrete frame with columns only where the plan shows them, beams on every grid line between adjacent columns except along the open side of the entrance porch, and fixed column bases. The entrance porch has no floor slab on either floor. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and residential live load 1.92 kPa (ASCE 7-22 Table 4.3-1) on both floors, distributed by two-way (45°) yield-line distribution, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "prompt": "Interpret the attached ground floor plan of a two-story hostel block ('research_paper/benchmarks/fixtures/hostel_block_plan_2story.PNG'; both stories 3.2 m high, same plan on both floors). Build the 3D reinforced concrete frame with columns only where the plan shows them, beams on every grid line between adjacent columns except along the open side of the entrance porch, and fixed column bases. The entrance porch has no floor slab on either floor. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and residential live load 1.92 kPa (ASCE 7-22 Table 4.3-1) on both floors, distributed by two-way (45°) yield-line distribution, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -2587,7 +2641,9 @@
         "live_basis": "ASCE 7-22 Table 4.3-1 residential 40 psf"
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -2613,7 +2669,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.3,
@@ -2635,7 +2691,8 @@
         "governing_member_type": "beam",
         "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
       },
-      "concrete_volume": 40.723
+      "concrete_volume": 40.723,
+      "footing_volume": 16.376
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -2651,6 +2708,7 @@
         ]
       },
       "concrete_volume": 40.723,
+      "footing_volume": 16.376,
       "design": {
         "governing_dcr": 0.9964,
         "governing_member_id": "BEAM_E1_E2_L2",
@@ -2676,7 +2734,7 @@
       "label": "Hard",
       "score": 6
     },
-    "prompt": "Interpret the attached floor plan of a four-story commercial building ('research_paper/benchmarks/fixtures/mall_plan_4story.PNG'; dimensions in feet and inches; all stories 3.2 m high, same plan on every floor). Build the 3D reinforced concrete frame in SI units with columns at the grid intersections shown, beams on every grid line between adjacent columns, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and retail live load 4.79 kPa (ASCE 7-22 Table 4.3-1) on every floor, distributed by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight and the floor dead load (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction (along grids 5 to 1) for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.0 g, SD1 = 0.5 g and S1 = 0.4 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
+    "prompt": "Interpret the attached floor plan of a four-story commercial building ('research_paper/benchmarks/fixtures/mall_plan_4story.PNG'; dimensions in feet and inches; all stories 3.2 m high, same plan on every floor). Build the 3D reinforced concrete frame in SI units with columns at the grid intersections shown, beams on every grid line between adjacent columns, and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and retail live load 4.79 kPa (ASCE 7-22 Table 4.3-1) on every floor, distributed by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight and the floor dead load (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction (along grids 5 to 1) for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 1.0 g, SD1 = 0.5 g and S1 = 0.4 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -2745,7 +2803,9 @@
         "damping_ratio": 0.05
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -2773,7 +2833,7 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.35,
@@ -2795,7 +2855,8 @@
         "governing_member_type": "frame",
         "governing_limit_state": "Story 2 (x): design story drift Cd*delta_xe/Ie <= Delta_a (ASCE 7-22 §12.12.1)"
       },
-      "concrete_volume": 86.37
+      "concrete_volume": 86.37,
+      "footing_volume": 54.05500000000001
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -2811,6 +2872,7 @@
         ]
       },
       "concrete_volume": 86.37,
+      "footing_volume": 54.05500000000001,
       "design": {
         "governing_dcr": 0.981,
         "governing_member_type": "frame",
@@ -2835,7 +2897,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Design a 3D two-story reinforced concrete moment frame with two 6.0 m bays in X, two 5.0 m bays in Y, story heights of 3.6 m (ground story) and 3.2 m, and pinned column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads separately in the X and Y directions for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.75 g, SD1 = 0.4 g and S1 = 0.3 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Include the orthogonal combinations 1.0Ex ± 0.3Ey and 0.3Ex ± 1.0Ey (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Generate the CAD drawings with reinforcement details and bar bending schedule as 'research_paper/drawings/C06_frame.dxf' and inspect the detailing results. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
+    "prompt": "Design a 3D two-story reinforced concrete moment frame with two 6.0 m bays in X, two 5.0 m bays in Y, story heights of 3.6 m (ground story) and 3.2 m, and pinned column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) on every floor, distributed from the floor panels to the bounding beams by two-way (45°) yield-line distribution, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 0.48 kPa partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads separately in the X and Y directions for a reinforced concrete special moment frame (R = 8, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.75 g, SD1 = 0.4 g and S1 = 0.3 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Include the orthogonal combinations 1.0Ex ± 0.3Ey and 0.3Ex ± 1.0Ey (§12.5.3). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide (ACI 318-25 §18.7.2.1 and §18.6.2.1), and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for special moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Generate the CAD drawings with reinforcement details and bar bending schedule as 'research_paper/drawings/C06_frame.dxf' and inspect the detailing results. Report the total dead load W (member self-weight plus floor dead load, kN), the X-direction base shear Vb (kN), and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -2887,7 +2949,9 @@
         "damping_ratio": 0.05
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -2922,30 +2986,31 @@
       "geometry_tolerance": 0.05
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           0.45,
           0.45
         ],
         "beam": [
-          0.3,
+          0.25,
           0.55
         ]
       },
       "metrics": {
-        "total_weight": 2028.2944,
-        "max_base_reaction": 834.1235,
-        "base_shear": 201.06,
-        "governing_dcr": 0.9955
+        "total_weight": 1942.8588,
+        "max_base_reaction": 813.4418,
+        "base_shear": 193.0464,
+        "governing_dcr": 1.0
       },
       "design": {
-        "governing_dcr": 0.9955,
-        "governing_member_id": "BX_1_2_1",
+        "governing_dcr": 1.0,
+        "governing_member_id": "BX_1_1_1",
         "governing_member_type": "beam",
-        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "concrete_volume": 34.173
+      "concrete_volume": 30.543,
+      "footing_volume": 8.931000000000001
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -2956,18 +3021,19 @@
           0.45
         ],
         "beam": [
-          0.3,
+          0.25,
           0.55
         ]
       },
-      "concrete_volume": 34.173,
+      "concrete_volume": 30.543,
+      "footing_volume": 8.931000000000001,
       "design": {
-        "governing_dcr": 0.9955,
-        "governing_member_id": "BX_1_2_1",
+        "governing_dcr": 1.0,
+        "governing_member_id": "BX_1_1_1",
         "governing_member_type": "beam",
-        "governing_limit_state": "Beam flexure (ACI 318 §22.3)"
+        "governing_limit_state": "SMF beam: width bw >= max(0.3h, 10 in or 250 mm) (ACI 318-25 §18.6.2.1(b))"
       },
-      "evaluations": 120,
+      "evaluations": 80,
       "candidates": 2451
     }
   },
@@ -2987,7 +3053,7 @@
       "label": "Hard",
       "score": 5
     },
-    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 16 ft, 20 ft and 14 ft (left to right), story heights of 14 ft (ground story), 12 ft and 12 ft, and fixed column bases. Work in kip and foot units. Materials: normal-weight concrete with f'c = 4,000 psi and unit weight 150 pcf; reinforcement with fy = 60 ksi. Allowable soil bearing pressure for the isolated footings: 3 ksf (net, under service loads). Gravity loads: floor dead load 105 psf and office live load 65 psf (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 16 ft tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 10 psf partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete intermediate moment frame (R = 5, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.45 g, SD1 = 0.18 g and S1 = 0.11 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 2 in, with columns at least 12 in, beams at least 10 in wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for intermediate moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kip), the X-direction base shear Vb (kip), and the governing DCR.",
+    "prompt": "Design a 2D three-bay, three-story reinforced concrete moment frame with bay widths of 16 ft, 20 ft and 14 ft (left to right), story heights of 14 ft (ground story), 12 ft and 12 ft, and fixed column bases. Work in kip and foot units. Materials: normal-weight concrete with f'c = 4,000 psi and unit weight 150 pcf; reinforcement with fy = 60 ksi. Allowable soil bearing pressure for the isolated footings: 3 ksf (net, under service loads). The footings are placed with their tops 1.5 ft below grade, under soil of unit weight 115 pcf. Gravity loads: floor dead load 105 psf and office live load 65 psf (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 16 ft tributary width, plus member self-weight. The seismic mass is the member self-weight, the floor dead load and a 10 psf partition weight (ASCE 7-22 §12.7.2). Apply ASCE 7-22 Equivalent Lateral Force seismic loads in the X direction for a reinforced concrete intermediate moment frame (R = 5, Ie = 1.0, Risk Category II, Site Class D) with SDS = 0.45 g, SD1 = 0.18 g and S1 = 0.11 g, using the approximate fundamental period Ta (ASCE 7-22 Eq. 12.8-8), distributing each story force equally to all joints at that floor level, and ignoring accidental torsion. Use the ASCE 7-22 LRFD load combinations with ρ = 1.0 and Ev = 0.2·SDS·D (§12.4). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 2 in, with columns at least 12 in, beams at least 10 in wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25, including Chapter 18 for intermediate moment frames, and all stories satisfy the ASCE 7-22 drift (§12.12.1) and stability (§12.8.7) limits (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kip), the X-direction base shear Vb (kip), and the governing DCR.",
     "spec": {
       "units": "kip, ft",
       "analysis": "static",
@@ -3037,7 +3103,9 @@
         "damping_ratio": 0.05
       },
       "foundation": {
-        "allowable_bearing_pressure": 3.0
+        "allowable_bearing_pressure": 3.0,
+        "soil_depth": 1.5,
+        "soil_unit_weight": 0.115
       }
     },
     "deliverables": {
@@ -3065,7 +3133,7 @@
       "geometry_tolerance": 0.15
     },
     "reference_solution": {
-      "source": "oracle_verifier.py (2026-10-28)",
+      "source": "oracle_verifier.py (2026-11-11)",
       "sections": {
         "column": [
           1.3333,
@@ -3087,7 +3155,8 @@
         "governing_member_type": "frame",
         "governing_limit_state": "Joint 6 (x): joint shear (ACI 318-25 §18.4.4.7)"
       },
-      "concrete_volume": 541.023
+      "concrete_volume": 541.023,
+      "footing_volume": 514.3333333333333
     },
     "baseline_design": {
       "method": "min_volume_grid_search",
@@ -3103,6 +3172,7 @@
         ]
       },
       "concrete_volume": 541.023,
+      "footing_volume": 514.3333333333333,
       "design": {
         "governing_dcr": 0.9941,
         "governing_member_type": "frame",
@@ -3128,7 +3198,7 @@
       "label": "Medium",
       "score": 4
     },
-    "prompt": "Design a 2D single-bay, single-story reinforced concrete frame with an 8.0 m span, 4.0 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). Gravity loads: floor dead load 5.1 kPa and heavy-storage live load 11.97 kPa (ASCE 7-22 Table 4.3-1) over a 6.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Because of architectural constraints, no column or beam may be wider than 0.30 m or deeper than 0.45 m. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "prompt": "Design a 2D single-bay, single-story reinforced concrete frame with an 8.0 m span, 4.0 m column height and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and heavy-storage live load 11.97 kPa (ASCE 7-22 Table 4.3-1) over a 6.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Because of architectural constraints, no column or beam may be wider than 0.30 m or deeper than 0.45 m. Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -3160,7 +3230,9 @@
         "tributary_width": 6.0
       },
       "foundation": {
-        "allowable_bearing_pressure": 150.0
+        "allowable_bearing_pressure": 150.0,
+        "soil_depth": 0.5,
+        "soil_unit_weight": 18.0
       }
     },
     "deliverables": {
@@ -3209,7 +3281,7 @@
       "label": "Medium",
       "score": 4
     },
-    "prompt": "Design a 2D two-bay, two-story reinforced concrete office frame with 5.0 m bays and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "prompt": "Design a 2D two-bay, two-story reinforced concrete office frame with 5.0 m bays and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",
@@ -3277,7 +3349,7 @@
       "label": "Medium",
       "score": 4
     },
-    "prompt": "Design a 2D three-bay, two-story reinforced concrete office frame with three 5.0 m bays giving a total frame length of 18.0 m, 3.5 m story heights and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
+    "prompt": "Design a 2D three-bay, two-story reinforced concrete office frame with three 5.0 m bays giving a total frame length of 18.0 m, 3.5 m story heights and fixed column bases. Materials: normal-weight concrete with f'c = 27.6 MPa and density 2400 kg/m³; reinforcement with fy = 414 MPa. Allowable soil bearing pressure for the isolated footings: 150 kPa (net, under service loads). The footings are placed with their tops 0.5 m below grade, under soil of unit weight 18 kN/m³. Gravity loads: floor dead load 5.1 kPa and office live load 3.12 kPa (ASCE 7-22 Table 4.3-1, including the partition allowance) over a 5.0 m tributary width, plus member self-weight. Use the ASCE 7-22 LRFD load combinations (§2.3.1). Use one square section for all columns and one rectangular section (width ≤ depth) for all beams, sized in multiples of 0.05 m, with columns at least 0.30 m, beams at least 0.25 m wide, and beams at least ℓ/18.5 deep for the longest span ℓ (ACI 318-25 Table 9.3.1.1). Use cracked-section stiffness (ACI 318-25 Table 6.6.3.1.1) and moment magnification for column slenderness (ACI 318-25 §6.6.4). Size the two sections so that all beams, columns and beam-column joints satisfy ACI 318-25 (governing demand-capacity ratio DCR ≤ 1.0). Also design an isolated footing under every column to ACI 318-25; the footings are sized to pass and are therefore not part of the governing DCR. Report the total dead load W (member self-weight plus floor dead load, kN) and the governing DCR.",
     "spec": {
       "units": "kN, m",
       "analysis": "static",

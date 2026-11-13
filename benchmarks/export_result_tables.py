@@ -1,5 +1,6 @@
 """
-Export the result tables of manuscript Section 5 (Tables 5.3-5.8) from the final results files.
+Export the result tables of the manuscript (Tables 4 and 5 of Section 4 and the tables of Supplementary Material
+S2) from the final results files.
 
 Every value comes from the latest results file of each model and configuration in ``benchmarks/results``, loaded
 as ``analyze_results.py`` loads them (setup failures left out, CCR over the compliance-scored design runs).
@@ -7,8 +8,8 @@ as ``analyze_results.py`` loads them (setup failures left out, CCR over the comp
 Usage
 -----
     python research_paper/benchmarks/export_result_tables.py
-writes research_paper/manuscript/tables/table_5_*.md and copies each table into 05_results_and_discussion.md
-between its '<!-- table: <file> -->' and '<!-- /table -->' markers.
+writes research_paper/manuscript/tables/*.md and copies each table into 04_results.md and
+supplementary/S2_supplementary.md between its '<!-- table: <file> -->' and '<!-- /table -->' markers.
 """
 
 from __future__ import annotations
@@ -26,8 +27,14 @@ from research_paper.benchmarks.analyze_results import load_all_results, wilcoxon
 
 RESULTS = REPO_ROOT / "research_paper" / "benchmarks" / "results"
 TABLES = REPO_ROOT / "research_paper" / "manuscript" / "tables"
-SECTION = REPO_ROOT / "research_paper" / "manuscript" / "05_results_and_discussion.md"
-MODELS = ["qwen3.5:9b", "minimax-m3.1-flash:cloud", "gemma4:31b-cloud", "deepseek-v4.1-flash:cloud"]
+# Manuscript files that carry tables between '<!-- table: <file> -->' and '<!-- /table -->' markers
+MANUSCRIPT = REPO_ROOT / "research_paper" / "manuscript"
+SECTIONS = [MANUSCRIPT / "04_results.md", MANUSCRIPT / "supplementary" / "S2_supplementary.md"]
+MODEL_LABELS = {"minimax-m3.1-flash:cloud": "minimax-m3.1-flash", "gemma4:31b-cloud": "gemma4:31b",
+                "deepseek-v4.1-flash:cloud": "deepseek-v4.1-flash", "mistral-large-4:cloud": "mistral-large-4"}
+CONFIG_LABELS = {"full_agent": "full agent", "ablated": "ablated agent", "direct_llm": "direct prompting",
+                 "code_gen": "code generation"}
+MODELS = ["gemma4:31b-cloud", "minimax-m3.1-flash:cloud", "deepseek-v4.1-flash:cloud", "mistral-large-4:cloud"]
 CONFIGS = ["full_agent", "ablated", "direct_llm", "code_gen"]
 AGENTS = ("full_agent", "ablated")
 PROBES = ("D02", "D03", "D04")
@@ -46,6 +53,7 @@ CHECKS = {
     "no_unspecified_load_cases": "Load cases not in the prompt",
     "seismic_parameters_match": "Seismic or record parameters",
     "seismic_load_magnitudes_match": "Seismic force totals", "bearing_pressure_match": "Bearing pressure",
+    "soil_overburden_match": "Soil above the footings",
     "design_on_static_envelope": "Design on the static envelope",
     "design_on_spectrum_envelope": "Design on the spectrum envelope",
 }
@@ -69,7 +77,8 @@ def _summaries() -> Dict[tuple, Dict[str, Any]]:
 
 def global_performance(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
     lines = [_row(["Model", "Configuration", "Runs", "TCR (%)", "CCR", "CHR (%)", "Claims (%)", "PSFR (%)",
-                   "Probes", "$N_{\text{iter}}$", "$\eta_{\text{vol}}$", "Turn limit (%)", "Repeats / run", "Runtime (s)"]),
+                   "Probes", r"$N_{\text{iter}}$", r"$\eta_{\text{vol}}$", "Turn limit (%)", "Repeats / run",
+                   "Runtime (s)"]),
              _row(["---", "---"] + [":---:"] * 12)]
     keys = [(m, c) for m in MODELS for c in CONFIGS] + [("deterministic_heuristic", "heuristic")]
     for key in keys:
@@ -122,7 +131,8 @@ def fidelity_checks(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
     """Failures of each PSFR check, per model and agent configuration (full / ablated), over the runs scored."""
     fails: Dict[tuple, Counter] = {}
     scored: Dict[tuple, int] = {}
-    for model in MODELS:
+    models = [m for m in MODELS if all((m, cfg) in runs for cfg in AGENTS)]  # models with both agent runs
+    for model in models:
         for cfg in AGENTS:
             records = runs.get((model, cfg), {}).get("case_results", [])
             details = [r["prompt_to_schema_fidelity_details"] for r in records
@@ -132,16 +142,16 @@ def fidelity_checks(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
             fails[(model, cfg)] = Counter(k for d in details for k, v in d.items() if v is False)
     used = [k for k in CHECKS if any(f[k] for f in fails.values())]
     used.sort(key=lambda k: -sum(f[k] for f in fails.values()))
-    lines = [_row(["PSFR check"] + [f"`{m}`" for m in MODELS] + ["All"]),
-             _row(["---"] + [":---:"] * (len(MODELS) + 1))]
+    lines = [_row(["PSFR check"] + [f"`{m}`" for m in models] + ["All"]),
+             _row(["---"] + [":---:"] * (len(models) + 1))]
     for k in used:
-        cells = [f"{fails[(m, 'full_agent')][k]} / {fails[(m, 'ablated')][k]}" for m in MODELS]
+        cells = [f"{fails[(m, 'full_agent')][k]} / {fails[(m, 'ablated')][k]}" for m in models]
         lines.append(_row([CHECKS[k]] + cells + [str(sum(f[k] for f in fails.values()))]))
     lines.append(_row(["Runs failing PSFR / scored"] + [
         f"{sum(1 for r in runs[(m, 'full_agent')]['case_results'] if r.get('prompt_to_schema_fidelity_passed') is False)}"
         f"/{scored[(m, 'full_agent')]} · "
         f"{sum(1 for r in runs[(m, 'ablated')]['case_results'] if r.get('prompt_to_schema_fidelity_passed') is False)}"
-        f"/{scored[(m, 'ablated')]}" for m in MODELS] + [""]))
+        f"/{scored[(m, 'ablated')]}" for m in models] + [""]))
     return lines
 
 
@@ -165,6 +175,61 @@ def ablation_tests(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
                            str(t["n_nonzero"]), f"{t['full_mean']:.3f}", f"{t['ablated_mean']:.3f}",
                            f"{t['diff']:+.3f}", t["statistic"], _p(t["p"]), _p(p_holm)]))
         previous = model
+    return lines
+
+
+def main_text_performance(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
+    """Table 4 of the main text: the scored metrics of ``global_performance`` only."""
+    lines = [_row(["LLM", "Configuration", "TCR (%)", "CCR", "CHR (%)", "PSFR (%)", "$\\eta_{\\text{vol}}$"]),
+             _row([":---", ":---"] + [":---:"] * 5)]
+    keys = [(m, c) for m in MODELS for c in CONFIGS] + [("deterministic_heuristic", "heuristic")]
+    for key in keys:
+        s = runs.get(key)
+        if s is None:
+            continue
+        model, cfg = key
+        claims = sum(r.get("claims_made_count", 0) for r in s["case_results"])
+        eta = s.get("avg_material_economy_ratio")
+        if cfg == "heuristic":
+            name, label = "No LLM", "heuristic"
+        else:
+            name = f"`{MODEL_LABELS.get(model, model)}`" if cfg == CONFIGS[0] else ""
+            label = CONFIG_LABELS[cfg]
+        lines.append(_row([
+            name, label, _pct(s.get("task_completion_rate_pct")),
+            f"{s['compliant_cases']}/{s['design_cases']} ({s['code_compliance_rate_pct']:.1f})",
+            "–" if cfg == "heuristic" or claims == 0 else _pct(s.get("calculation_hallucination_rate_pct")),
+            _pct(s.get("prompt_to_schema_fidelity_rate_pct")) if cfg in AGENTS else "–",
+            "–" if eta is None else f"{eta:.3f}",
+        ]))
+    return lines
+
+
+def main_text_ablation(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
+    """Table 5 of the main text: one row per LLM from the tests of ``ablation_tests`` (Holm-adjusted p in
+    parentheses)."""
+    lines = [_row(["LLM", "CCR, full", "CCR, ablated", "Split", "McNemar p", "Mean DCR, full", "Mean DCR, ablated",
+                   "Wilcoxon p"]),
+             _row([":---"] + [":---:"] * 7)]
+    rows = []
+    for model in MODELS:
+        if (model, "full_agent") not in runs or (model, "ablated") not in runs:
+            continue
+        rows += [(model, t) for t in wilcoxon_tests(runs[(model, "full_agent")], runs[(model, "ablated")])
+                 if t["metric"] in ("Code Compliance (CCR)", "Governing DCR")]
+    holm = holm_adjusted([t["p"] for _, t in rows])
+    by_model: Dict[str, Dict[str, tuple]] = {}
+    for (model, t), p_holm in zip(rows, holm):
+        by_model.setdefault(model, {})[t["metric"]] = (t, p_holm)
+    for model, tests in by_model.items():
+        if len(tests) < 2:
+            continue
+        (ccr, ccr_holm), (dcr, dcr_holm) = tests["Code Compliance (CCR)"], tests["Governing DCR"]
+        lines.append(_row([
+            f"`{MODEL_LABELS.get(model, model)}`", f"{ccr['full_mean']:.3f}", f"{ccr['ablated_mean']:.3f}",
+            ccr["statistic"], f"{_p(ccr['p'])} ({_p(ccr_holm)})", f"{dcr['full_mean']:.3f}",
+            f"{dcr['ablated_mean']:.3f}", f"{_p(dcr['p'])} ({_p(dcr_holm)})",
+        ]))
     return lines
 
 
@@ -194,7 +259,9 @@ def plan_perception(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
              _row(["---", "---", ":---:", ":---:", ":---:"])]
     for model in MODELS:
         for cfg in AGENTS:
-            records = {_cid(r): r for r in runs.get((model, cfg), {}).get("case_results", [])}
+            if (model, cfg) not in runs:
+                continue
+            records = {_cid(r): r for r in runs[(model, cfg)]["case_results"]}
             cells = []
             for case in ("C03", "C04", "C05"):
                 r = records.get(case)
@@ -239,7 +306,9 @@ def probes(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
                 if r is None:
                     cells.append("–")
                 elif r.get("behavior_passed"):
-                    cells.append("✓")
+                    # D02: infeasibility reported, with sections beyond the cap left or proposed as the remedy
+                    beyond = case == "D02" and r.get("design_space_violations")
+                    cells.append("✓ (sections beyond the cap, stated)" if beyond else "✓")
                 else:
                     reason = why.get(r.get("failure_mode"))
                     if case == "D02" and r.get("design_space_violations"):
@@ -250,25 +319,32 @@ def probes(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
 
 
 def sync_section(tables: Dict[str, List[str]]) -> None:
-    """Copy each table into Section 5 between '<!-- table: name -->' and '<!-- /table -->'."""
-    if not SECTION.exists():  # the manuscript is not part of the public repository
-        return
-    text = SECTION.read_text(encoding="utf-8")
-    for name, lines in tables.items():
-        start, end = f"<!-- table: {name} -->", "<!-- /table -->"
-        i = text.find(start)
-        if i == -1:
+    """Copy each table into the manuscript files between '<!-- table: name -->' and '<!-- /table -->'."""
+    for section in SECTIONS:
+        if not section.exists():  # the manuscript is not part of the public repository
             continue
-        j = text.find(end, i)
-        text = text[:i + len(start)] + "\n" + "\n".join(lines) + "\n" + text[j:]
-    SECTION.write_text(text, encoding="utf-8")
-    print(f"synced {SECTION}")
+        text = section.read_text(encoding="utf-8")
+        synced = []
+        for name, lines in tables.items():
+            start, end = f"<!-- table: {name} -->", "<!-- /table -->"
+            i = text.find(start)
+            if i == -1:
+                continue
+            j = text.find(end, i)
+            if j == -1:
+                raise ValueError(f"{section.name}: no '<!-- /table -->' after {start}")
+            text = text[:i + len(start)] + "\n" + "\n".join(lines) + "\n" + text[j:]
+            synced.append(name)
+        section.write_text(text, encoding="utf-8")
+        print(f"synced {section}: {', '.join(synced) or 'no table markers'}")
 
 
 def main() -> None:
     runs = _summaries()
     TABLES.mkdir(parents=True, exist_ok=True)
     tables = {
+        "table_4_results_summary.md": main_text_performance(runs),
+        "table_5_ablation_summary.md": main_text_ablation(runs),
         "table_5_3_global_performance.md": global_performance(runs),
         "table_5_4_failure_modes.md": failure_modes(runs),
         "table_5_5_fidelity_checks.md": fidelity_checks(runs),

@@ -4,7 +4,7 @@ Export the benchmark case matrix (manuscript Table 3) from benchmark_cases.json.
 Usage
 -----
     python research_paper/benchmarks/export_case_table.py
-writes research_paper/manuscript/tables/table_4_1_benchmark_cases.md and copies it into 04_experimental_setup.md
+writes research_paper/manuscript/tables/table_4_1_benchmark_cases.md and copies it into supplementary/S2_supplementary.md
 between its '<!-- table: table_4_1_benchmark_cases.md -->' and '<!-- /table -->' markers.
 """
 
@@ -21,7 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 from research_paper.benchmarks.case_schema import BenchmarkCase, load_cases  # noqa: E402
 
 OUTPUT = REPO_ROOT / "research_paper" / "manuscript" / "tables" / "table_4_1_benchmark_cases.md"
-SECTION = REPO_ROOT / "research_paper" / "manuscript" / "04_experimental_setup.md"
+SECTION = REPO_ROOT / "research_paper" / "manuscript" / "supplementary" / "S2_supplementary.md"
 REGIME = {"gravity": "Gravity", "modal": "Modal", "fixture": "Analyses of the CAE file"}
 # Display titles where the case file's name is not the manuscript's wording (the case file is benchmark data)
 TITLES = {
@@ -96,9 +96,11 @@ def _reference(case: BenchmarkCase) -> str:
             return f"infeasible: none of the {b.candidates} section pairs is compliant"
         (c, _), (bb, bh) = b.sections.column, b.sections.beam
         state = b.design.governing_limit_state
-        state = re.sub(r"\s*\((?:ACI|ASCE)[^)]*\)\s*$", "", state)  # code reference
+        # code reference, also one that ends with an item letter: '(ACI 318-25 §18.6.2.1(b))'
+        state = re.sub(r"\s*\((?:ACI|ASCE)[^()]*(?:\([^()]*\))?\)\s*$", "", state)
         state = re.sub(r"^(?:Joint|Story) \d+ \([xy]\): ", "", state)  # location
         state = {"Column axial-flexure (P-M) interaction": "column axial–flexural interaction",
+                 "SMF beam: width bw >= max(0.3h, 10 in or 250 mm)": "minimum beam width",
                  "Beam flexure": "beam flexure",
                  "strong column / weak beam sum(Mnc) >= 1.2 sum(Mnb)": "strong-column/weak-beam",
                  "joint shear": "joint shear",

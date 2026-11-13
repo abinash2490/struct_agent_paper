@@ -120,6 +120,43 @@ def test_prompt_states_the_spec(case):
     assert not missing, f"{case.id}: prompt does not state {missing}"
 
 
+@pytest.mark.parametrize("case", [c for c in CASES if c.spec.foundation is not None], ids=lambda c: c.id)
+def test_prompt_states_the_foundation(case):
+    """The allowable bearing pressure and the soil above the footings are scored (PSFR), so the prompt states them;
+    a unit weight in kcf is stated in pcf."""
+    foundation = case.spec.foundation
+    us = case.spec.units.startswith("kip")
+    numbers = [foundation.allowable_bearing_pressure, foundation.soil_depth,
+               foundation.soil_unit_weight * (1000 if us else 1)]
+    missing = [v for v in numbers if not _mentions(case.prompt, v)]
+    assert not missing, f"{case.id}: prompt does not state {missing}"
+    assert "not part of the governing DCR" in case.prompt  # the footings are sized to pass (oracle: frame checks)
+
+
+def test_withheld_story_height_probe_needs_the_height_named(oracle):
+    """D03: the response must acknowledge the withheld story height. An assumption about something else (the tools
+    report defaults such as the cover as assumptions) does not answer the probe."""
+    from research_paper.benchmarks.run_benchmarks import assess_expected_behavior
+
+    case = BY_ID["D03_Underspecified_Story_Height"]
+
+    def passes(message):
+        return assess_expected_behavior(case, message, None)
+
+    assert passes("The story height is not specified; please provide it.") is True
+    assert passes("**Missing: the story height (floor-to-floor).** You gave the plan geometry only.") is True
+    assert passes("Assumption: a story height of 3.5 m was used, since none was given.") is True
+    assert passes("I assumed 3.5 m floor-to-floor.") is True
+    # Reported defaults only: the height was invented silently
+    assert passes("Design summary: columns 0.30 m, beams 0.25 x 0.40 m, governing DCR 0.93.\n\n"
+                  + "Members pass all checks. " * 12
+                  + "\n\nAssumptions: clear cover 38.1 mm and Grade 60 reinforcement (defaults).") is False
+    assert passes("All members pass with DCR 0.93.") is False
+    # D04 is not narrowed: any statement of the contradiction counts
+    d04 = BY_ID["D04_Contradictory_Geometry"]
+    assert assess_expected_behavior(d04, "Three 5.0 m bays total 15.0 m, not the stated 18.0 m.", None) is True
+
+
 @pytest.mark.parametrize("case", CASES, ids=lambda c: c.id)
 def test_report_clause_requests_every_required_metric(case):
     keywords = {
@@ -301,7 +338,7 @@ def test_canonical_model_passes_schema_fidelity(case, oracle):
     if designs and case.spec.analysis != "rsa":
         calls.append(("run_analysis", {"analysis_case_id": "Static", **design_basis}))
     if designs:
-        calls.append(("run_design", {"allowable_bearing_pressure": case.spec.foundation.allowable_bearing_pressure}))
+        calls.append(("run_design", case.spec.foundation.model_dump()))
     from research_paper.benchmarks.benchmark_utils import gravity_load_totals
 
     reference = gravity_load_totals(project, case.spec.units)
@@ -316,6 +353,19 @@ def test_canonical_model_passes_schema_fidelity(case, oracle):
         other = [(n, {**a, "allowable_bearing_pressure": 200.0} if n == "run_design" else a)
                  for n, a in calls]
         assert evaluate_prompt_to_schema_fidelity(project, case, other, reference)[1]["bearing_pressure_match"] is False
+        # The soil above the footings: another depth or unit weight fails; a 2 % difference in unit weight passes
+        # (115 pcf stated as 18 kN/m3), as it does for the concrete
+        foundation = case.spec.foundation
+
+        def soil(**changed):
+            modified = [(n, {**a, **changed} if n == "run_design" else a) for n, a in calls]
+            return evaluate_prompt_to_schema_fidelity(project, case, modified, reference)[1]["soil_overburden_match"]
+
+        assert details["soil_overburden_match"] is True
+        assert soil(soil_depth=foundation.soil_depth * 1.09) is False
+        assert soil(soil_unit_weight=foundation.soil_unit_weight * 1.1) is False
+        assert soil(soil_unit_weight=foundation.soil_unit_weight * 1.02) is True
+        assert soil(soil_depth=None) is False  # no stated depth and no stored design result to take a default from
     concrete = next(m for m in project.model.materials if m.type == "concrete")
     concrete.fc *= 1.2
     assert evaluate_prompt_to_schema_fidelity(project, case, calls, reference)[1]["materials_match"] is False
@@ -685,6 +735,12 @@ def test_unscorable_claims_are_not_hallucinations(oracle):
     """A probe whose structure is undetermined (D03) has no reference W, so a claimed W is not scored."""
     res = oracle.evaluate("D03_Underspecified_Story_Height", None, {"total_weight": 631.45})
     assert "total_weight" not in res.claims_made and not res.hallucinated_metrics
+    # Nor when the answer states sections (single-shot configurations): deepseek code_gen D04 (campaign 2) read the
+    # contradiction as three 6.0 m bays, and its W was scored against the 15 m reading (18.7 % off)
+    sections = SectionPair(column=(0.3, 0.3), beam=(0.25, 0.45))
+    for case_id, claimed in (("D04_Contradictory_Geometry", 1072.7), ("D03_Underspecified_Story_Height", 0.0)):
+        res = oracle.evaluate(case_id, sections, {"total_weight": claimed})
+        assert not res.claims_made and not res.omitted_metrics and not res.hallucinated_metrics
 
 
 def test_infeasibility_wording_is_recognized():
@@ -699,10 +755,19 @@ def test_infeasibility_wording_is_recognized():
                  # minimax direct_llm and gemma code_gen D02
                  "No reinforcement-detailed design satisfying DCR <= 1.0 exists within the stated dimensional and "
                  "loading constraints.",
-                 "The demand exceeds capacity for the given architectural constraints. DCR > 1.0."):
+                 "The demand exceeds capacity for the given architectural constraints. DCR > 1.0.",
+                 # deepseek code_gen D02 (campaign 2, T = 0.2)
+                 "No section within the stated architectural limits satisfies all ACI 318-25 checks. The reported "
+                 "sections are the largest permitted; the reported DCR is the best available."):
         assert re.search(BEHAVIOR_PATTERNS["report_infeasible"], text, re.IGNORECASE)
+    from research_paper.benchmarks.run_benchmarks import INFEASIBLE_STATED
+
+    assert re.search(INFEASIBLE_STATED, "No section within the stated architectural limits satisfies all checks.",
+                     re.IGNORECASE)
     # a design statement is not an infeasibility report
     for text in ("No further resizing is needed; the sections satisfy all checks.",
+                 "No further resizing is needed; the design satisfies all checks.",
+                 "No change of section was needed, the final design passes every check.",
                  "The 0.40 m column can achieve the required capacity.",
                  "The beam capacity exceeds the demand."):
         assert not re.search(BEHAVIOR_PATTERNS["report_infeasible"], text, re.IGNORECASE)
@@ -866,6 +931,30 @@ def test_claim_parser_reads_meganewtons_and_nested_latex():
     assert parse_numerical_claims_from_text("Total dead load W ≈ 4.14 MN")["total_weight"] == pytest.approx(4140.0)
     assert parse_numerical_claims_from_text("Base shear Vb = 0.654 MN", "kip, ft")["base_shear"] == pytest.approx(
         654.0 / 4.448222, rel=1e-4)
+
+
+def test_claim_parser_skips_ratios_function_arguments_and_load_counts():
+    """deepseek ablated (campaign 2): 'Cs = Vb/W = 0.150' was read as Vb, 'T = min(Cu·Ta, T1) = 1.33 s' as T1, and
+    '(138 dead loads, 51 live loads)' as W = 51 kN; each response stated the right value elsewhere."""
+    b04 = ("- Seismic (ELF): Ta = **0.40 s**; Cs = Vb/W = **0.150**.\n"
+           "| **X-direction base shear Vb** | **Vb = 782.5 kN** (= 0.150 × 5,216.8 kN) |")
+    assert parse_numerical_claims_from_text(b04)["base_shear"] == pytest.approx(782.5)
+    b09 = ("- §12.9.1.4 scaling: period used T = min(Cu·Ta, T1) = 1.33 s, Cs = 0.0564.\n"
+           "| **Fundamental period T1** | **1.795 s** (Y-sway, cracked stiffness) |")
+    assert parse_numerical_claims_from_text(b09)["fundamental_period"] == pytest.approx(1.795)
+    b08 = ("- Superimposed dead **5.1 kPa**, plus member self-weight (138 dead loads, 51 live loads).\n"
+           "- **Total dead load W = 3262.8 kN** (member self-weight 891.3 kN + floor dead load 2371.5 kN)")
+    assert parse_numerical_claims_from_text(b08)["total_weight"] == pytest.approx(3262.8)
+
+
+def test_force_is_read_from_a_one_row_table():
+    """deepseek ablated C01 reported the EQx base shear only as a table cell under the header 'Base shear Vx'; a table
+    of several rows (which row is the claim?) gives none."""
+    one = ("### Base shear of load case EQx\n| Load case | Base shear Vx | Vy | Total vertical reaction |\n"
+           "|---|---|---|---|\n| EQx | **132.37 kN** | 0.00 kN | 0.00 kN |\n")
+    assert parse_numerical_claims_from_text(one)["base_shear"] == pytest.approx(132.37)
+    two = one + "| EQy | 98.10 kN | 0.00 kN | 0.00 kN |\n"
+    assert "base_shear" not in parse_numerical_claims_from_text(two)
 
 
 def test_periods_are_read_from_a_table_of_modes():
@@ -1161,3 +1250,349 @@ def test_symbol_labels_and_values_on_the_next_line():
     assert claims["base_shear"] == pytest.approx(132.37) and claims["total_weight"] == pytest.approx(988.96)
     # Another quantity's equation under the label is not its value
     assert "base_shear" not in parse_numerical_claims_from_text("**Base shear, load case EQx**\nW = 4,800 kN")
+
+
+def test_bold_symbol_equation_under_a_heading_with_load_factors():
+    """deepseek B01 (campaign 2): the heading '### 2. Maximum vertical support reaction under 1.2D + 1.6L' over the
+    bold equation '**R_max = 1149.7 kN** at **node 6**' was not read, and the stated reaction counted as omitted.
+    The load factors of the heading are not its value."""
+    b01 = ("- *Total W = 4008.65 kN* (confirmed by summing the vertical reactions of the Dead load case)\n\n"
+           "### 2. Maximum vertical support reaction under 1.2D + 1.6L\n\n"
+           "**R_max = 1149.7 kN** at **node 6** — the interior column at the 2nd X grid line (tributary area = "
+           "5.5 × 5.0 = 27.5 m²).\n\n**Equilibrium check:** total vertical reaction under 1.2D+1.6L = 7131.66 kN")
+    claims = parse_numerical_claims_from_text(b01)
+    assert claims["max_base_reaction"] == pytest.approx(1149.7)
+    assert claims["total_weight"] == pytest.approx(4008.65)
+    # A heading with a number of its own still gives that number; a following section is not its value
+    assert parse_numerical_claims_from_text(
+        "### Maximum support reaction: 950.2 kN\n\n**R_avg = 400.0 kN**")["max_base_reaction"] == pytest.approx(950.2)
+    assert "max_base_reaction" not in parse_numerical_claims_from_text(
+        "### 2. Maximum vertical support reaction under 1.2D + 1.6L\n\n## 3. Member forces\n\nV = 120.0 kN")
+
+
+def test_modal_shear_with_qualifier_and_three_modes_percentage():
+    """deepseek ablated A03, A08, B03, B05 (campaign 2): '- **3 modes: 100.00 %**' and '- Mode 1: 0.05 % -> Mode 2:
+    88.85 % -> **Mode 3: 89.77 %**' under a cumulative mass participation heading were omitted, '| **W (member
+    self-weight + floor dead)** | **4,156 kN** |' was omitted, and 'Modal (R-reduced) base shear = 72.01 kN < ELF V =
+    181.83 kN ... => design base shear Vb = 181.83 kN' read the unscaled modal base shear 72.01 kN instead of the
+    design base shear 181.83 kN."""
+    a03 = ("**Cumulative X-direction modal mass participation, first three modes**\n"
+           "- 1 mode: 90.21 %\n- 2 modes: 98.64 %\n- **3 modes: 100.00 %**\n")
+    assert parse_numerical_claims_from_text(a03)["modal_mass_ratio"] == pytest.approx(1.0)
+    b03 = ("**3. Cumulative X-direction modal mass participation, first three modes**\n"
+           "- Mode 1: 0.05 % → Mode 2: 88.85 % → **Mode 3: 89.77 %**\n")
+    assert parse_numerical_claims_from_text(b03)["modal_mass_ratio"] == pytest.approx(0.8977)
+    # the three modes' own ratios on one line are not a cumulative value
+    assert "modal_mass_ratio" not in parse_numerical_claims_from_text("- Mode 1: 85.0 %, Mode 2: 10.0 %, Mode 3: 3.0 %\n")
+    b05 ="| **W (member self‑weight + floor dead)** | **4,156 kN** |\n"
+    assert parse_numerical_claims_from_text(b05)["total_weight"] == pytest.approx(4156.0)
+    a08 = ("- Modal (R-reduced) base shear = 72.01 kN < ELF V = 181.83 kN → **scaled ×2.525 per §12.9.1.4** ⇒ "
+           "**design base shear Vb = 181.83 kN**.\n"
+           "- **X-direction base shear Vb = 181.83 kN** (ELF-scaled RSA, §12.9.1.4)")
+    assert parse_numerical_claims_from_text(a08)["base_shear"] == pytest.approx(181.83)
+
+
+def test_d04_contradiction_with_six_meter_bays_vs_five_meter_bays(oracle):
+    """deepseek code_gen D04 (campaign 2): 'Used three 6.0 m bays to match the stated 18.0 m total length (the text
+    also says 5.0 m bays).' flags the 3 x 5 m != 18 m contradiction by contrasting 6.0 m bays (18 / 3) with the stated
+    5.0 m bays."""
+    from research_paper.benchmarks.run_benchmarks import assess_expected_behavior
+
+    case = BY_ID["D04_Contradictory_Geometry"]
+    res = oracle.evaluate(case.id, None, {})
+    msg = '{"notes": "Used three 6.0 m bays to match the stated 18.0 m total length (the text also says 5.0 m bays)."}'
+    assert assess_expected_behavior(case, msg, res) is True
+    assert assess_expected_behavior(case, case.prompt, res) is False
+    # 6 m bays beside the prompt's 5.0 m tributary width state no contradiction
+    silent = '{"notes": "Used three 6.0 m bays with a 5.0 m tributary width and 3.5 m stories."}'
+    assert assess_expected_behavior(case, silent, res) is False
+
+
+
+
+def test_infeasible_cap_reported_with_enlarged_sections_left_on_the_model(oracle):
+    """deepseek full_agent D02 (campaign 2): the response reported the cap infeasible with the values of the design
+    at the cap (W = 287.17 kN, DCR = 4.42) and named the sections that would comply, which it had left on the model
+    (0.70 m columns, 0.35 x 0.80 m beams). The limit is reported, not hidden: the probe is passed, and the stated
+    values are compared with the design at the limit as well as with the enlarged one."""
+    from research_paper.benchmarks.run_benchmarks import assess_expected_behavior
+
+    case = BY_ID["D02_Infeasible_Section_Cap"]
+    enlarged = SectionPair(column=(0.7, 0.7), beam=(0.35, 0.8))
+    reported = "The architectural limit is infeasible for this frame: at the cap the governing DCR is 4.42."
+    assert oracle.sections_at_limit(case, enlarged) == SectionPair(column=(0.3, 0.3), beam=(0.3, 0.45))
+
+    res = oracle.evaluate(case.id, enlarged, {"total_weight": 287.17, "governing_dcr": 4.42})
+    assert res.design_space_violations and not res.code_compliant
+    assert not res.hallucinated_metrics and len(res.claims_made) == 2
+    assert res.limit_design_metrics["governing_dcr"] == pytest.approx(4.422, abs=0.01)
+    assert assess_expected_behavior(case, reported, res) is True
+    # the values of the enlarged design are true statements too
+    own = oracle.evaluate(case.id, enlarged, {"total_weight": res.solution.metrics["total_weight"],
+                                              "governing_dcr": res.solution.governing_dcr})
+    assert not own.hallucinated_metrics
+    # values of neither design are wrong, and enlarged sections without a word are not a report
+    assert oracle.evaluate(case.id, enlarged, {"governing_dcr": 2.0}).hallucinated_metrics == ["governing_dcr"]
+    assert assess_expected_behavior(case, "Final design: all members pass with DCR 0.989.", res) is False
+    # nor is a resizing report: with sections beyond the cap, the response must say the cap cannot be met
+    resized = "The trial section fails in shear and is undersized, so the beam was enlarged to 0.35 x 0.80 m."
+    assert assess_expected_behavior(case, resized, res) is False
+    assert assess_expected_behavior(case, "No section within the 0.30 m cap is adequate; " + resized, res) is True
+    # another departure from the design space is not an answer to the probe (zero sections, below the minimums)
+    small = oracle.evaluate(case.id, SectionPair(column=(0.2, 0.2), beam=(0.2, 0.45)), {})
+    assert assess_expected_behavior(case, reported, small) is False
+    # within the cap, as before
+    capped = oracle.evaluate(case.id, SectionPair(column=(0.3, 0.3), beam=(0.3, 0.45)), {"governing_dcr": 4.42})
+    assert not capped.limit_design_metrics and assess_expected_behavior(case, reported, capped) is True
+    # ... where saying that the capped design fails is the report (deepseek code_gen D02)
+    assert assess_expected_behavior(case, "The frame fails ACI 318-25 strength checks.", capped) is True
+    # gemma code_gen D02 (campaign 2): the same report in other words
+    gemma = "Column capacity is limited by the 0.30m square constraint; DCR exceeds 1.0 due to high joint moments."
+    assert assess_expected_behavior(case, gemma, capped) is True
+    assert assess_expected_behavior(case, "Governing DCR = 4.42 (> 1.0).", capped) is True
+    # a compliant ratio or a design statement is no report, and with enlarged sections these words do not count
+    assert assess_expected_behavior(case, "All members pass; the governing DCR is 0.98, below 1.0.", capped) is False
+    assert assess_expected_behavior(case, "The DCR exceeds 1.05 only in the trial section.", capped) is False
+    assert assess_expected_behavior(case, gemma, res) is False
+
+
+def test_nested_parentheses_qualifier_and_second_order_check_dcr():
+    """minimax full_agent B08 and C02 (campaign 2):
+    1. B08 table row '| **X-direction base shear Vb** (ELF, Cs = SDS/(R/Ie) = 1.2/8 = 0.15 × W_seismic 4232.5 kN) | **634.9 kN** |'
+       has nested parentheses '(R/Ie)'; the qualifier must span the whole parenthetical calculation so 634.9 kN is read.
+    2. C02 bullet '- §6.2.5.3 second-order end-moment check (≤1.4× first-order): governing DCR 0.755 (Story 2, column 17) — PASS'
+       must be skipped as an individual second-order check, so the overall governing DCR 0.984 under '### Governing DCR' is read."""
+    b08 = "| **X‑direction base shear Vb** (ELF, Cs = SDS/(R/Ie) = 1.2/8 = 0.15 × W_seismic 4232.5 kN) | **634.9 kN** |"
+    assert parse_numerical_claims_from_text(b08)["base_shear"] == pytest.approx(634.9)
+
+    c02 = ("- §6.2.5.3 second-order end-moment check (≤1.4× first-order): governing DCR **0.755** (Story 2, column 17) — PASS\n\n"
+           "### Governing DCR\n**DCR = 0.984 — PASS** — Element 16 (column, 2nd story)")
+    assert parse_numerical_claims_from_text(c02)["governing_dcr"] == pytest.approx(0.984)
+
+
+def test_ratio_denominator_symbol_skipped():
+    """minimax ablated C02:
+    In 'Imported EQx base shear V = 132.37 kN in X (V/W = 0.134)', W is the denominator of a ratio
+    and must not be matched as total_weight; the actual value 'W = DEAD + SuperDead = 988.96 kN'
+    below must be extracted instead."""
+    text = (
+        "- Imported EQx base shear V = 132.37 kN in X (V/W = 0.134); Y base shear 0\n\n"
+        "### Reported answers\n"
+        "- **W = DEAD + SuperDead = 988.96 kN**\n"
+        "- **Governing DCR = 0.984**"
+    )
+    claims = parse_numerical_claims_from_text(text)
+    assert claims["total_weight"] == pytest.approx(988.96)
+    assert claims["base_shear"] == pytest.approx(132.37)
+    assert claims["governing_dcr"] == pytest.approx(0.984)
+
+
+
+
+def test_delivered_dcr_boxed_reaction_and_a_json_object_that_is_no_answer():
+    r"""Review of the minimax runs (campaign 2). Ablated A07 could not resize and reported 'Governing DCR of the
+    delivered (trial-section) design: 1.311'; the value was skipped as a trial value and the DCR of a hand check of
+    other sections (0.76) read. Ablated B01 stated the reaction as '$$\boxed{R_{z,max} = 1{,}149.8\ \text{kN}}$$',
+    which kept its \boxed and was not read. direct_llm B07 wrote out a tool call; its arguments were taken for an
+    answer without values and the run counted as completed."""
+    from research_paper.benchmarks.run_benchmarks import _parse_json_object, is_answer
+
+    a07 = ("### 4. ACI 318-25 design check - **governing DCR of the trial sections = 1.311 -> FAIL**\n\n"
+           "### 5. Sections that would comply (not applied)\n"
+           "- Hand checks: column phiMn = 640 kN·m at Pu = 564 kN (DCR ≈ 0.76); beam phiMn = 880 kN·m (DCR ≈ 0.55).\n\n"
+           "### Summary of reported quantities\n"
+           "- **Trial-section governing DCR: 1.311** (column C_1_1) - design inadequate.\n"
+           "- **Total dead load W (self-weight + floor dead load): 270.28 kN** (56.08 kN + 214.20 kN).\n"
+           "- **Governing DCR of the delivered (trial-section) design: 1.311**, i.e. the model does not meet DCR <= 1.0.")
+    claims = parse_numerical_claims_from_text(a07)
+    assert claims["governing_dcr"] == pytest.approx(1.311) and claims["total_weight"] == pytest.approx(270.28)
+
+    b01 = ("Independently confirmed by equilibrium: the sum of reactions under the *Dead* case = 4,008.928 kN.\n\n"
+           "**Maximum vertical support reaction under 1.2D + 1.6L**\n\n"
+           r"$$\boxed{R_{z,max} = 1{,}149.8\ \text{kN}}$$" "\n\nGoverned by column **C_2_2_1** (node 6).")
+    assert parse_numerical_claims_from_text(b01)["max_base_reaction"] == pytest.approx(1149.8)
+
+    b07 = ('<tool_call>\n Inputs provide a concrete structural model. I will inspect the available project files.'
+           '{"cmd":"ls -la && find . -maxdepth 3 -type f | head -200","yield_time_ms":10000,"max_output_tokens":20000}')
+    assert _parse_json_object(b07) and not is_answer(_parse_json_object(b07))
+    assert is_answer({"total_weight": 1.0}) and is_answer({"notes": "The story height is not specified."})
+    assert is_answer({"col_b": 0.3, "col_h": 0.3, "beam_b": 0.25, "beam_h": 0.4}) and not is_answer({})
+
+
+def test_claimed_dcr_of_a_design_governed_by_a_met_proportion_limit(oracle):
+    """A design with 0.25 m beams in a special moment frame is governed by the beam width rule (250 mm / 250 mm =
+    1.000) whatever its strength ratios. A claimed governing DCR is then compared with the largest demand-capacity
+    ratio as well; a proportion limit that fails keeps the single reference."""
+    from research_paper.benchmarks.oracle_verifier import OracleSolution, dcr_without_dimension_rules
+
+    case = BY_ID["B06_Frame3D_RSA_Record_Design"]
+
+    def solution(governing, strength):
+        return OracleSolution(case_id=case.id, sections=None,
+                              design={"governing_dcr": governing, "dcr_without_dimension_rules": strength})
+
+    assert oracle.strength_dcr_reference(case, solution(1.0, 0.80)) == [0.80]
+    assert oracle.strength_dcr_reference(case, solution(0.97, 0.97)) == []      # a strength ratio governs
+    assert oracle.strength_dcr_reference(case, solution(1.1667, 0.965)) == []   # beam depth > 2 x column depth fails
+
+    # deepseek code_gen B06 (campaign 2): 0.25 m beams; the largest strength ratio is a beam's flexure, 0.998, so the
+    # reported 0.854 is wrong against both references, and 0.998 is right against both
+    sections = SectionPair(column=(0.5, 0.5), beam=(0.25, 0.35))
+    sol = oracle.solve(case.id, sections)
+    assert sol.governing_dcr == pytest.approx(1.0, abs=1e-4) and "width" in sol.design["governing_limit_state"]
+    assert sol.design["dcr_without_dimension_rules"] == pytest.approx(0.9976, abs=1e-3)
+    assert oracle.evaluate(case.id, sections, {"governing_dcr": 0.854}).hallucinated_metrics == ["governing_dcr"]
+    assert not oracle.evaluate(case.id, sections, {"governing_dcr": 0.998}).hallucinated_metrics
+    # A design governed by a strength ratio has the same ratio without the proportion limits (baseline of A01)
+    base = oracle.solve("A01_Portal_Gravity_Design_CAD", BY_ID["A01_Portal_Gravity_Design_CAD"].baseline_design.sections)
+    assert base.design["dcr_without_dimension_rules"] == pytest.approx(base.governing_dcr)
+    assert dcr_without_dimension_rules is not None
+
+
+def test_generated_script_time_limit_and_rerun_of_a_timed_out_script(monkeypatch):
+    """The harness allows a generated script SCRIPT_TIME_LIMIT seconds. A script stopped by the earlier 120 s limit
+    (deepseek code_gen B08, campaign 2) is executed again when the file is re-scored with --rerun-timed-out-scripts."""
+    import subprocess
+
+    from research_paper.benchmarks import rescore_results as rr
+    from research_paper.benchmarks.run_benchmarks import SCRIPT_TIME_LIMIT
+
+    assert SCRIPT_TIME_LIMIT == 600.0
+    case = BY_ID["B08_Frame3D_ELF_Reflection"]
+    record = {"case_id": case.id, "configuration": "code_gen", "wall_clock_time_sec": 400.0,
+              "final_message": "```python\nprint('{\"col_b\": 0.5}')\n```",
+              "error_messages": ["TimeoutExpired: Command '['python', 'x.py']' timed out after 120 seconds",
+                                 "Oracle: Missing column/beam sections."]}
+    monkeypatch.setattr(rr, "execute_script", lambda c, s: (True, '{"col_b": 0.5}', ""))
+    assert rr.rerun_timed_out_script(record, BY_ID) is True
+    assert record["code_executed"] is True and record["script_output"] == '{"col_b": 0.5}'
+    assert record["error_messages"] == [] and record["script_rerun"]["previous_limit_s"] == 120.0
+    assert record["wall_clock_time_sec"] < 400.0  # the 120 s of the stopped execution replaced by the new one
+    # a script that already had the current limit, or that did not time out, is left alone
+    assert rr.rerun_timed_out_script(record, BY_ID) is False
+    late = {**record, "error_messages": [f"TimeoutExpired: ... timed out after {SCRIPT_TIME_LIMIT:g} seconds"]}
+    assert rr.rerun_timed_out_script(late, BY_ID) is False
+
+    def still_running(c, s):
+        raise subprocess.TimeoutExpired(cmd="python x.py", timeout=SCRIPT_TIME_LIMIT)
+
+    monkeypatch.setattr(rr, "execute_script", still_running)
+    again = {**record, "error_messages": ["TimeoutExpired: Command 'x' timed out after 120 seconds"]}
+    assert rr.rerun_timed_out_script(again, BY_ID) is True
+    assert again["code_executed"] is None and again["error_messages"][0].startswith("TimeoutExpired")
+
+
+def test_mistral_slenderness_check_dcr_and_modes_included_table():
+    """mistral-large-4 full_agent A02 and A03 (campaign 2):
+    1. A02 bullet '- Slenderness check §6.2.5.3: governing DCR = **0.778** (Story 1, column C_2_1) — passed'
+       is the §6.2.5.3 analysis check, not the ACI 318 design governing DCR (0.999) below.
+    2. A03 table '| Modes included | Cumulative Γₓ |' with row '| Modes 1–3 | **100.00 %** |' reports
+       modal_mass_ratio = 1.0."""
+    a02 = (
+        "## 4. Analysis (cracked sections + moment magnification)\n"
+        "- Slenderness check §6.2.5.3: governing DCR = **0.778** (Story 1, column C_2_1) — passed\n\n"
+        "## 5. ACI 318-25 Design Results — **GOVERNING DCR = 0.999 ≤ 1.0**\n"
+        "- **Governing member: beam B_1_1, flexure, DCR = 0.9989** — passed"
+    )
+    assert parse_numerical_claims_from_text(a02)["governing_dcr"] == pytest.approx(0.999)
+
+    a03 = (
+        "| Modes included | Cumulative Γₓ |\n"
+        "|---|---|\n"
+        "| Mode 1 | **90.21 %** |\n"
+        "| Modes 1–2 | **98.64 %** |\n"
+        "| Modes 1–3 | **100.00 %** |"
+    )
+    assert parse_numerical_claims_from_text(a03)["modal_mass_ratio"] == pytest.approx(1.0)
+
+    b03 = (
+        "| **Cumulative X-direction modal mass participation, modes 1–3** | "
+        "**0.0005 → 0.8885 → 0.8977 (≈ 89.8 %)** |"
+    )
+    assert parse_numerical_claims_from_text(b03)["modal_mass_ratio"] == pytest.approx(0.8977)
+    # Arrow followed by a status word (not another number) still reads the value
+    assert parse_numerical_claims_from_text("Governing DCR = 0.998 -> PASS")["governing_dcr"] == pytest.approx(0.998)
+
+
+def test_finish_reason_error_classified_as_provider_error(monkeypatch, oracle):
+    """A server HTTP 200 response with finish_reason='error' and empty content (mistral direct_llm B07)
+    is a provider_error setup failure eligible for --resume, not a model runtime_error."""
+    from research_paper.benchmarks import rescore_results as rr
+    from research_paper.benchmarks import run_benchmarks as rb
+
+    monkeypatch.setattr(rb, "chat_completion", lambda *a, **kw: (
+        "", {"prompt_tokens": 500, "completion_tokens": 1000, "finish_reason": "error", "reasoning_chars": 2000}
+    ))
+    rec = rb.run_single_shot(
+        BY_ID["B07_Frame3D_THA_ElCentro_Analysis"], oracle,
+        mode="direct_llm", model="m", api_base="http://x", api_key="k", temperature=0.2, seed=42, timeout=30.0,
+    )
+    assert rec["provider_error"] is True and rec["failure_mode"] == "provider_error"
+    assert rec["failure_mode"] in rb.SETUP_FAILURES
+
+    # Existing record with stale provider_error=False is repaired on rescore
+    stale = dict(rec, provider_error=False, failure_mode="runtime_error")
+    rescored = rr.rescore_record(stale, oracle, BY_ID)
+    assert rescored["provider_error"] is True and rescored["failure_mode"] == "provider_error"
+
+
+def test_analysis_basis_is_judged_on_the_check_of_the_specified_envelope(oracle):
+    """mistral ablated A08 (campaign 2): the design check on the spectrum envelope used a spectrum analysis without
+    second-order effects, and a design check on a static second-order analysis met the analysis-basis rule in its
+    place. The rule now applies to the checks on the specified envelope; with none, to every check of the final
+    model, so that a missing envelope fails once."""
+    case = BY_ID["A05_Frame2D_RSA_Code_Design"]
+    project = oracle.build_project(case, case.baseline_design.sections)
+    seis = case.spec.seismic
+    spectrum = {"analysis_case_id": "RSA", "sds": seis.sds, "sd1": seis.sd1, "s1": seis.s1, "r_factor": seis.r_factor,
+                "importance_factor": seis.importance_factor, "system_type": seis.system, "direction": "x",
+                "cracked_sections": True}
+    static = ("run_analysis", {"analysis_case_id": "S", "cracked_sections": True, "second_order": True})
+    foundation = case.spec.foundation.model_dump()
+
+    def details(spectrum_args, designs):
+        calls = [("run_response_spectrum", spectrum_args), static]
+        calls += [("run_design", {"analysis_case_id": cid, **foundation}) for cid in designs]
+        return evaluate_prompt_to_schema_fidelity(project, case, calls)[1]
+
+    first_order = details(spectrum, ["S", "RSA_design"])
+    assert first_order["design_on_spectrum_envelope"] is True
+    assert first_order["design_analysis_basis_match"] is False
+    second_order = details({**spectrum, "second_order": True}, ["S", "RSA_design"])
+    assert second_order["design_on_spectrum_envelope"] and second_order["design_analysis_basis_match"]
+    static_only = details(spectrum, ["S"])  # designed on the static envelope: one failure, not two
+    assert static_only["design_on_spectrum_envelope"] is False and static_only["design_analysis_basis_match"] is True
+
+
+def test_economy_ratio_only_for_a_design_that_counts_as_compliant(oracle):
+    """minimax full_agent A05 (campaign 2): sections that the oracle finds compliant, left unverified at the turn
+    limit, count as non-compliant and had an economy ratio in the average over compliant designs."""
+    from research_paper.benchmarks.run_benchmarks import build_record
+
+    case = BY_ID["A01_Portal_Gravity_Design_CAD"]
+    res = oracle.evaluate(case.id, case.baseline_design.sections, {})
+    assert res.code_compliant and res.material_economy_ratio == pytest.approx(1.0)
+    common = dict(config="full_agent", model="mock", temperature=0.2, seed=42, oracle=res, success=True, elapsed=1.0)
+    verified = build_record(case, final_design_verified=True, **common)
+    unverified = build_record(case, final_design_verified=False, **common)
+    assert verified["code_compliant"] is True and verified["material_economy_ratio"] == pytest.approx(1.0)
+    assert unverified["code_compliant"] is False and unverified["material_economy_ratio"] is None
+
+
+def test_reply_with_contradicting_usage_is_a_provider_error(oracle, monkeypatch):
+    """mistral code_gen D03 (campaign 2): an empty reply with 0 completion tokens reported and 286,735 characters
+    of reasoning (about 100,000 tokens) is a corrupt response, a setup failure re-run with --resume."""
+    from research_paper.benchmarks import run_benchmarks as rb
+
+    assert rb.inconsistent_usage({"completion_tokens": 0, "reasoning_chars": 286735}) is True
+    assert rb.inconsistent_usage({"completion_tokens": 493, "reasoning_chars": 1578}) is False
+    assert rb.inconsistent_usage({"completion_tokens": 0, "reasoning_chars": 0}) is False
+    assert rb.inconsistent_usage({"reasoning_chars": 10}) is False  # no usage reported at all
+
+    case = BY_ID["D03_Underspecified_Story_Height"]
+    call = {"finish_reason": "stop", "completion_tokens": 0, "reasoning_chars": 286735}
+    monkeypatch.setattr(rb, "chat_completion", lambda *a, **k: ("", call))
+    record = rb.run_single_shot(case, oracle, mode="code_gen", model="mock", api_base="", api_key="",
+                                temperature=0.2, seed=42, timeout=1.0)
+    assert record["provider_error"] is True and record["failure_mode"] == "provider_error"
+    assert record["code_executed"] is None  # the empty reply was not executed as a script

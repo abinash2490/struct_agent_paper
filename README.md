@@ -1,7 +1,7 @@
-# A Neuro-Symbolic Large Language Model Agent for the Analysis, Design, and Detailing of Reinforced Concrete Frames: Framework and Oracle-Based Benchmark
+# Explicit engineering knowledge in large language model agents for reinforced concrete frame design: a neuro-symbolic architecture and oracle-based evaluation
 
 Benchmark, harness, oracle, scoring, and analysis code of the paper above (Abinash Mandal, University of Nevada,
-Reno; submitted to *Automation in Construction*).
+Reno; submitted to *Advanced Engineering Informatics*).
 
 The paper presents an agent in which a large language model (LLM) plans the workflow of reinforced concrete
 moment-frame design and deterministic tools perform every structural calculation: ASCE 7-22 loading, static and
@@ -40,7 +40,7 @@ research_paper/
 ```
 
 The run records (`benchmarks/results/`: every tool call, final message, and score of the 459 runs) are archived on
-Zenodo with a snapshot of the code used for the runs: [10.5281/zenodo.23939590](https://doi.org/10.5281/zenodo.23939590). The manuscript is not part of this
+Zenodo with a snapshot of the code used for the runs: [10.5281/zenodo.24208548](https://doi.org/10.5281/zenodo.24208548). The manuscript is not part of this
 repository.
 
 ---
@@ -81,9 +81,9 @@ python "research_paper/benchmarks/audit_results.py" research_paper/benchmarks/re
 python "research_paper/benchmarks/analyze_results.py"
 ```
 
-New runs need an Ollama server (local for `qwen3.5:9b`, Ollama Cloud for the other three models). The paper's runs
-used one run per case and configuration (seed 42), at temperature 0.2 for the agents and 0.0 for the single-shot
-baselines; `benchmarks/commands_to_run.md` gives every command. A repeated run is likely, but not certain, to
+New runs need an Ollama server with Ollama Cloud access (`http://localhost:11434/v1`). The paper's runs
+used one run per case and configuration (seed 42), at temperature 0.2 across all LLM configurations
+(the deterministic heuristic baseline requires no sampling); `benchmarks/commands_to_run.md` gives every command. A repeated run is likely, but not certain, to
 reproduce the original, because a served model can change and not every provider guarantees deterministic sampling.
 
 The minimum-volume baselines and frozen references are regenerated only after a change to the cases or the solvers:

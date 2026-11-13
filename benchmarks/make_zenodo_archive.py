@@ -38,14 +38,14 @@ OUT = REPO_ROOT / "research_paper" / "zenodo_upload"
 REPOSITORIES = ["research_paper", "struct_core", "struct_load", "fem2d", "fem3d", "structdyn", "aci318",
                 "struct_draw", "struct_link", "struct_agent"]
 
-TITLE = ("Benchmark cases, results, and source code for 'A Neuro-Symbolic Large Language Model Agent for the "
-         "Analysis, Design, and Detailing of Reinforced Concrete Frames'")
-PAPER = ("A Neuro-Symbolic Large Language Model Agent for the Analysis, Design, and Detailing of Reinforced Concrete "
-         "Frames: Framework and Oracle-Based Benchmark")
+TITLE = ("Benchmark cases, results, and source code for 'Explicit engineering knowledge in large language "
+         "model agents for reinforced concrete frame design'")
+PAPER = ("Explicit engineering knowledge in large language model agents for reinforced concrete frame design: "
+         "a neuro-symbolic architecture and oracle-based evaluation")
 
 DEPOSIT_README = """# <title>
 
-Data and code of the paper "<paper>" (A. Mandal). DOI of this record: 10.5281/zenodo.23939590. The framework
+Data and code of the paper "<paper>" (A. Mandal). DOI of this record: 10.5281/zenodo.24208548. The framework
 packages are developed at https://github.com/learnstructure.
 
 ## Files

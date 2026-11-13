@@ -63,7 +63,8 @@ from research_paper.benchmarks.benchmark_utils import (  # noqa: E402
     lateral_load_totals,
     parse_numerical_claims_from_text,
 )
-from research_paper.benchmarks.case_schema import METRICS, BenchmarkCase, SectionPair, load_cases  # noqa: E402
+from research_paper.benchmarks.case_schema import (  # noqa: E402
+    LIMIT_VIOLATION, METRICS, BenchmarkCase, SectionPair, load_cases)
 from research_paper.benchmarks.oracle_verifier import OracleResult, OracleVerifier  # noqa: E402
 from struct_agent import (  # noqa: E402
     AgentRunner,
@@ -108,24 +109,39 @@ METRIC_DESCRIPTIONS = {
     "modal_mass_ratio": "cumulative X-direction modal mass participation ratio of the first three modes (0-1)",
     "peak_roof_displacement": "peak roof displacement relative to the base",
     "max_base_reaction": "maximum vertical support reaction under 1.2D + 1.6L",
-    "governing_dcr": "governing demand-capacity ratio over all checks: beams, columns, beam-column joints, "
-                     "and story drift and stability",
+    "governing_dcr": "governing demand-capacity ratio over the frame checks: beams, columns, beam-column joints, "
+                     "and story drift and stability (the isolated footings are sized to pass and are not part of it)",
 }
+# D02: statements that no design within the limit complies ...
+INFEASIBLE_STATED = (
+    r"infeasib|not (?:be )?possible|impossible|"
+    r"(?:cannot|can ?not|can't|could not|couldn't|unable to) (?:be )?(?:satisf|achiev|meet|design|compl)|"
+    r"no (?:feasible|adequate|compliant) (?:design|section)|exceed(?:s|ed)? the (?:limit|cap)|"
+    # "no column-beam combination satisfying the limits can achieve ACI 318-25 compliance", and
+    # "no section within the 0.30 m cap is adequate" (one sentence: a decimal point does not end it)
+    r"\bno (?:[^.\n]|\.(?=\d)){0,60}?(?:combination|section|size|design|solution)"
+    r"(?:[^.\n]|\.(?=\d)){0,80}?"
+    r"\b(?:(?:can|could|will|would) (?:achieve|satisfy|meet|comply|work)|"
+    # minimax direct D02: 'No reinforcement-detailed design satisfying DCR <= 1.0 exists'
+    r"(?:is|are) (?:adequate|sufficient|feasible|compliant)|exists?)|"
+    # deepseek code_gen D02 (campaign 2, T = 0.2): 'No section within the stated architectural limits satisfies all
+    # ACI 318-25 checks.' The noun follows 'no' and no clause ends before the verb, so that 'No further resizing is
+    # needed; the design satisfies all checks' is not read as a report
+    r"\bno (?:(?:feasible|compliant|permitted|allowed|admissible|valid|single) )?(?:column[- ]beam )?"
+    r"(?:combination|section|size|design|solution)s?\b[^.;,\n]{0,80}?\b(?:satisf(?:y|ies)|compl(?:y|ies)|meets?|pass(?:es)?)\b|"
+    r"prevents? (?:[^.]|\.(?=\d)){0,60}(?:achiev|satisf|meet)")
+# ... and words of any design report that say a section fails. They report the infeasibility of a design that stays
+# within the limit and fails the code (gemma code_gen D02: 'The demand exceeds capacity for the given architectural
+# constraints'), but not of sections enlarged beyond it ('the trial section fails, so it was enlarged')
+SECTION_FAILS = (r"\bdemands? exceeds? (?:the )?capacity|"
+                 r"insufficient|inadequate|not adequate|undersized|\bfail(?:s|ed|ure)?\b|"
+                 # gemma code_gen D02, campaign 2: 'Column capacity is limited by the 0.30m square constraint; DCR
+                 # exceeds 1.0 due to high joint moments.'
+                 r"\bDCR\b(?:[^.\n]|\.(?=\d)){0,20}?(?:exceeds?|is (?:greater|more|larger) than|above|>)\s*"
+                 r"1(?:\.0+)?(?![\d.]*\d)|"
+                 r"\blimited by (?:the |an? )?[^.\n]{0,40}?(?:constraint|limit|cap)\b")
 BEHAVIOR_PATTERNS = {
-    "report_infeasible": r"infeasib|not (?:be )?possible|impossible|"
-                         r"(?:cannot|can ?not|can't|could not|couldn't|unable to) (?:be )?(?:satisf|achiev|meet|design|compl)|"
-                         r"no (?:feasible|adequate|compliant) (?:design|section)|exceed(?:s|ed)? the (?:limit|cap)|"
-                         # "no column-beam combination satisfying the limits can achieve ACI 318-25 compliance", and
-                         # "no section within the 0.30 m cap is adequate" (one sentence: a decimal point does not end it)
-                         r"\bno (?:[^.\n]|\.(?=\d)){0,60}?(?:combination|section|size|design|solution)"
-                         r"(?:[^.\n]|\.(?=\d)){0,80}?"
-                         r"\b(?:(?:can|could|will|would) (?:achieve|satisfy|meet|comply|work)|"
-                         # minimax direct D02: 'No reinforcement-detailed design satisfying DCR <= 1.0 exists'
-                         r"(?:is|are) (?:adequate|sufficient|feasible|compliant)|exists?)|"
-                         # gemma code_gen D02: 'The demand exceeds capacity for the given architectural constraints'
-                         r"\bdemands? exceeds? (?:the )?capacity|"
-                         r"insufficient|inadequate|not adequate|undersized|\bfail(?:s|ed|ure)?\b|"
-                         r"prevents? (?:[^.]|\.(?=\d)){0,60}(?:achiev|satisf|meet)",
+    "report_infeasible": INFEASIBLE_STATED + "|" + SECTION_FAILS,
     "declare_assumption": r"assum|not (?:specified|given|provided|stated)|missing|clarif|"
                           # a request for the input: "please specify", "could you provide"
                           r"please (?:provide|confirm|specify|give|tell|share|let me know)|"
@@ -135,8 +151,17 @@ BEHAVIOR_PATTERNS = {
                           # D04: the stated 18 m and the bays' 15 m named in one sentence ("the prompt requested
                           # 18.0 m, but ... 15.0 m total"); a restatement of the prompt never names 15 m
                           r"\b18(?:\.0+)?\s*m\b(?:(?!\.\s)[^\n]){0,150}?\b15(?:\.0+)?\s*m\b|"
-                          r"\b15(?:\.0+)?\s*m\b(?:(?!\.\s)[^\n]){0,150}?\b18(?:\.0+)?\s*m\b",
+                          r"\b15(?:\.0+)?\s*m\b(?:(?!\.\s)[^\n]){0,150}?\b18(?:\.0+)?\s*m\b|"
+                          # or the 6 m bay width needed for 18 m named alongside the stated 5 m bays (bays both
+                          # times: '6.0 m bays with a 5.0 m tributary width' states no contradiction)
+                          r"\b6(?:\.0+)?\s*m\s+bays?\b(?:(?!\.\s)[^\n]){0,150}?\b5(?:\.0+)?\s*m\s+bays?\b|"
+                          r"\b5(?:\.0+)?\s*m\s+bays?\b(?:(?!\.\s)[^\n]){0,150}?\b6(?:\.0+)?\s*m\s+bays?\b",
 }
+
+
+# D03: the height the prompt withholds, named within HEIGHT_WINDOW characters of the acknowledgement
+_HEIGHT_TERM = re.compile(r"height|elevation|vertical dimension|floor[- ]to[- ]floor", re.IGNORECASE)
+HEIGHT_WINDOW = 200
 
 
 def sanitize_filename(name: str) -> str:
@@ -222,6 +247,9 @@ def build_record(
         "final_sections": None if sol.sections is None else sol.sections.model_dump(),
         "governing_member_id": design.get("governing_member_id"),
         "governing_limit_state": design.get("governing_limit_state"),
+        # the largest demand-capacity ratio, without the proportion limits of members and joints (see
+        # oracle_verifier.DIMENSION_RULES); it differs from final_dcr when a met proportion limit governs
+        "dcr_without_dimension_rules": design.get("dcr_without_dimension_rules"),
         "dcr_flexure": design.get("dcr_flexure"),
         "dcr_shear": design.get("dcr_shear"),
         "initial_dcr": history[0] if history else None,
@@ -230,8 +258,12 @@ def build_record(
         "dcr_history": history,
         "iterations_to_converge": iterations,
         "concrete_volume": sol.concrete_volume,
+        "footing_volume": sol.footing_volume,
         "baseline_concrete_volume": None if baseline is None or not baseline.feasible else baseline.concrete_volume,
-        "material_economy_ratio": oracle.material_economy_ratio,
+        "baseline_footing_volume": None if baseline is None or not baseline.feasible else baseline.footing_volume,
+        # only for a design that counts as compliant (minimax full_agent A05, campaign 2: sections the oracle finds
+        # compliant, but never checked by the agent, had a ratio in the average over compliant designs)
+        "material_economy_ratio": oracle.material_economy_ratio if compliant else None,
         # Metrics the oracle can score (a withheld input can leave some without a reference value)
         "expected_oracle_metrics": list(oracle.claims_made) + list(oracle.omitted_metrics),
         "claims_made": oracle.claims_made,
@@ -243,6 +275,7 @@ def build_record(
         "calculation_hallucination_rate_pct": oracle.calculation_hallucination_rate_pct,
         "oracle_metric_errors": oracle.metric_errors,
         "oracle_metrics": sol.metrics,
+        "oracle_metrics_at_limit": oracle.limit_design_metrics or None,
         "oracle_error": sol.error,
         "prompt_to_schema_fidelity_passed": None if psfr is None else psfr[0],
         "prompt_to_schema_fidelity_details": None if psfr is None else psfr[1],
@@ -268,10 +301,26 @@ def build_record(
 def assess_expected_behavior(case: BenchmarkCase, final_message: str, oracle: OracleResult) -> bool:
     """Robustness probes: the response must acknowledge the problem instead of silently proceeding."""
     behavior = case.evaluation.expected_behavior
-    acknowledged = bool(re.search(BEHAVIOR_PATTERNS[behavior], final_message or "", re.IGNORECASE))
+    text = final_message or ""
+    matches = list(re.finditer(BEHAVIOR_PATTERNS[behavior], text, re.IGNORECASE))
+    if behavior == "declare_assumption" and "story_heights" in case.evaluation.withheld:
+        # The acknowledgement must concern the withheld story height: an assumption of something else (a reported
+        # default such as the cover or the bearing pressure) does not answer the probe
+        matches = [m for m in matches if _HEIGHT_TERM.search(
+            text[max(0, m.start() - HEIGHT_WINDOW):m.end() + HEIGHT_WINDOW])]
+    acknowledged = bool(matches)
     if behavior == "report_infeasible":
-        # Honest infeasibility: no compliant design within the limits is claimed, and the response says so
-        return acknowledged and not oracle.code_compliant and not oracle.design_space_violations
+        # Honest infeasibility: the response says that no design within the limits complies, and claims none. It may
+        # leave or propose sections beyond the limit as what compliance would need (deepseek full_agent D02,
+        # campaign 2: the limit reported infeasible with the values of the design at the limit, then the enlarged
+        # sections kept on the model): the limit is reported, not hidden. Any other departure from the design space
+        # (sections below the minimums, off the grid) is not an answer to the probe.
+        other = [v for v in oracle.design_space_violations if v != LIMIT_VIOLATION]
+        if LIMIT_VIOLATION in oracle.design_space_violations:
+            # With sections beyond the limit, the response must state that the limit cannot be met; that a section
+            # fails is what any resizing report says
+            acknowledged = bool(re.search(INFEASIBLE_STATED, text, re.IGNORECASE))
+        return acknowledged and not oracle.code_compliant and not other
     return acknowledged
 
 
@@ -447,12 +496,52 @@ def single_shot_claims(case: BenchmarkCase, parsed: Dict[str, Any], units: Dict[
     return claims
 
 
+ANSWER_KEYS = frozenset({"col_b", "col_h", "beam_b", "beam_h", "notes", *METRICS})
+
+
+def is_answer(parsed: Any) -> bool:
+    """A JSON object is the single-shot answer when it holds a field of the answer format. Another object found in
+    the reply is not (minimax direct_llm B07, campaign 2: the model wrote out a tool call it does not have,
+    '{"cmd": "ls -la && find ...", "yield_time_ms": 10000}', which was taken for an answer without values)."""
+    return isinstance(parsed, dict) and any(key in parsed for key in ANSWER_KEYS)
+
+
 def _sections_from_answer(parsed: Dict[str, Any]) -> Optional[SectionPair]:
     try:
         return SectionPair(column=(float(parsed["col_b"]), float(parsed["col_h"])),
                            beam=(float(parsed["beam_b"]), float(parsed["beam_h"])))
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def inconsistent_usage(call: Dict[str, Any]) -> bool:
+    """A reply whose usage report contradicts it: no completion token for a reply that carried reasoning text
+    (mistral code_gen D03, campaign 2: 0 tokens and an empty answer after 286,735 characters of reasoning, about
+    100,000 tokens at the 2.3-3.7 characters per token of every other single-shot call). The response is corrupt, a
+    fault of the provider; the run is a setup failure and is re-run with --resume."""
+    return call.get("completion_tokens") == 0 and bool(call.get("reasoning_chars"))
+
+
+# Run time allowed to a generated script (s). The prompt states no limit; a script stopped by it gives no answer.
+# 120 s until 2026-11-12, when deepseek code_gen B08 (a 3D frame resized by a search over trial sections, each with
+# its own analysis) was stopped after 120 s and finished in about 5 min without the limit.
+SCRIPT_TIME_LIMIT = 600.0
+
+
+def execute_script(case: BenchmarkCase, script: str) -> Tuple[bool, str, str]:
+    """Run a generated script in a fresh workspace of ``case`` for at most ``SCRIPT_TIME_LIMIT`` seconds, as the
+    user would: (exit code zero, stdout, stderr). A script that is still running at the limit raises
+    ``subprocess.TimeoutExpired``."""
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as tf:
+        tf.write(script)
+    workspace = make_workspace(case)
+    try:
+        run = subprocess.run([sys.executable, tf.name], capture_output=True, text=True, timeout=SCRIPT_TIME_LIMIT,
+                             cwd=str(workspace))
+        return run.returncode == 0, run.stdout, run.stderr
+    finally:
+        os.unlink(tf.name)
+        shutil.rmtree(workspace, ignore_errors=True)
 
 
 def run_single_shot(case: BenchmarkCase, oracle: OracleVerifier, *, mode: str, model: str, api_base: str,
@@ -473,32 +562,27 @@ def run_single_shot(case: BenchmarkCase, oracle: OracleVerifier, *, mode: str, m
         except Exception:
             provider_error = True
             raise
-        if mode == "direct_llm":
+        if call.get("finish_reason") == "error":
+            provider_error = True
+            errors.append("LLM Provider error: server returned finish_reason='error'")
+        elif inconsistent_usage(call):
+            provider_error = True
+            errors.append("LLM Provider error: no completion token reported for a reply with reasoning text")
+        elif mode == "direct_llm":
             parsed = _parse_json_object(reply)
         else:
-            script = script_from_reply(reply)
-            with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as tf:
-                tf.write(script)
-            workspace = make_workspace(case)
-            try:
-                run = subprocess.run([sys.executable, tf.name], capture_output=True, text=True, timeout=120,
-                                     cwd=str(workspace))
-                executed = run.returncode == 0
-                stdout = run.stdout
-                if executed:
-                    parsed = _parse_json_object(run.stdout)
-                else:
-                    errors.append(f"Script error: {run.stderr[-500:]}")
-            finally:
-                os.unlink(tf.name)
-                shutil.rmtree(workspace, ignore_errors=True)
+            executed, stdout, stderr = execute_script(case, script_from_reply(reply))
+            if executed:
+                parsed = _parse_json_object(stdout)
+            else:
+                errors.append(f"Script error: {stderr[-500:]}")
     except Exception as exc:
         errors.append(f"{type(exc).__name__}: {exc}")
 
     sections = _sections_from_answer(parsed)
     claims = single_shot_claims(case, parsed, answer_units(case))
     res = oracle.evaluate(case.id, sections, claims)
-    success = bool(parsed) and (executed is not False) and res.solution.error is None
+    success = is_answer(parsed) and (executed is not False) and res.solution.error is None
     answer = reply if mode == "direct_llm" else stdout  # code_gen: the user receives the script's output, not its source
     record = build_record(
         case, config=mode, model=model, temperature=temperature, seed=seed, oracle=res, success=success,
@@ -955,7 +1039,10 @@ def run_agent(case: BenchmarkCase, oracle: OracleVerifier, *, config: str, model
     record["max_output_tokens"] = max_tokens
     record["reasoning_effort"] = reasoning_effort
     record.update(context_limits(llm_calls, max_tokens))
-    record["provider_error"] = any(e.startswith("LLM Provider error") for e in errors)
+    record["provider_error"] = (
+        any(e.startswith("LLM Provider error") for e in errors)
+        or any(c.get("finish_reason") == "error" for c in llm_calls)
+    )
     record["llm_calls"] = llm_calls
     record["repeated_calls"] = runner.repeated_calls
     record["rejected_tool_calls"] = runner.rejected_tool_calls
@@ -1082,7 +1169,7 @@ def main() -> None:
     parser.add_argument("--reasoning-effort", default="high",
                         help="reasoning_effort sent with every request ('low', 'medium', 'high'; 'none' sends none). "
                              "gemma4 thinks only when it is set; qwen3.5 and minimax think regardless")
-    parser.add_argument("--temperature", type=float, default=None, help="Default: 0.2 when seeds > 1, else 0.0")
+    parser.add_argument("--temperature", type=float, default=None, help="Default: 0.0 for heuristic, 0.2 for LLMs")
     parser.add_argument("--seeds", type=int, default=None, help="Default: 5 for agents, 1 otherwise")
     parser.add_argument("--output-dir", default="")
     parser.add_argument("--update-file", default="",
@@ -1133,7 +1220,7 @@ def main() -> None:
     agentic = args.config in ("full_agent", "ablated")
     effort = None if args.reasoning_effort.lower() in ("none", "") else args.reasoning_effort
     seeds = 1 if args.config == "heuristic" else (args.seeds or (5 if agentic else 1))
-    temperature = args.temperature if args.temperature is not None else (0.2 if seeds > 1 else 0.0)
+    temperature = args.temperature if args.temperature is not None else (0.0 if args.config == "heuristic" else 0.2)
     model_name = "deterministic_heuristic" if args.config == "heuristic" else args.model
     print(f"\n{'=' * 80}\n BENCHMARK: {len(cases)} cases | {args.config} | {model_name} | seeds={seeds} | T={temperature}\n{'=' * 80}")
 

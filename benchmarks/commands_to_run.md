@@ -1,7 +1,6 @@
 # Benchmark Commands
 
-The commands that produced the results of the paper **"A Neuro-Symbolic Large Language Model Agent for the Analysis,
-Design, and Detailing of Reinforced Concrete Frames: Framework and Oracle-Based Benchmark"**, and the commands that
+The commands that produced the results of the paper **"Explicit engineering knowledge in large language model agents for reinforced concrete frame design: a neuro-symbolic architecture and oracle-based evaluation"**, and the commands that
 score, audit, and analyze them. Run them from the repository root (the folder that holds `research_paper/` and the
 packages).
 
@@ -13,10 +12,10 @@ packages).
 
 | Model | Host | Notes |
 |---|---|---|
-| `qwen3.5:9b` | local Ollama (`http://localhost:11434/v1`) | add `--timeout 5400` (about 15 tokens/s on the local GPU) |
-| `minimax-m3.1-flash:cloud` | Ollama Cloud | long reasoning: single-shot answers took 43k–130k tokens |
-| `gemma4:31b-cloud` | Ollama Cloud | reasons only when `reasoning_effort` is sent (the harness always sends it) |
-| `deepseek-v4.1-flash:cloud` | Ollama Cloud | |
+| `gemma4:31b-cloud` | Ollama Cloud | 31B; reasons only when `reasoning_effort` is sent (the harness always sends it) |
+| `minimax-m3.1-flash:cloud` | Ollama Cloud | 428B total; long reasoning: single-shot answers took 43k–130k tokens |
+| `deepseek-v4.1-flash:cloud` | Ollama Cloud | 763B total |
+| `mistral-large-4:cloud` | Ollama Cloud | 1.05T total (~52B active) |
 
 All four are reasoning models and receive `reasoning_effort="high"` (`--reasoning-effort`, default `high`).
 
@@ -29,15 +28,13 @@ All four are reasoning models and receive `reasoning_effort="high"` (`--reasonin
   stage instead of the resizing stage (`allow_resizing=False`), and `allow_model_recreation=False` blocks model
   re-creation and `preliminary_sizing` after a design check.
 * `direct_llm`: one call, answer as JSON, no tools.
-* `code_gen`: one call, a standalone Python script (numpy/scipy) that prints the JSON answer.
+* `code_gen`: one call, a standalone Python script (numpy/scipy) that prints the JSON answer. The script runs in a fresh workspace for at most 10 min (`run_benchmarks.SCRIPT_TIME_LIMIT`; 120 s before 2026-11-12).
 
 ### Seed and temperature
 
 The paper uses one run per case and configuration, seed 42.
 
-* **Agent runs need `--temperature 0.2`.** The harness defaults to 0.2 only when `--seeds` is above 1, so a
-  one-seed agent run without the flag runs at 0.0.
-* Single-shot runs use the default temperature 0.0.
+* **All LLM runs use temperature 0.2.** The harness defaults to 0.2 for all LLM configurations (`full_agent`, `ablated`, `direct_llm`, `code_gen`), and 0.0 for the deterministic heuristic.
 * `--seeds N` runs seeds 42 … 41 + N. A second seed is added to an existing file with
   `--seeds 2 --temperature 0.2 --update-file <file> --resume` (the seeds already in the file are skipped).
 
@@ -77,18 +74,12 @@ $R = "research_paper/benchmarks/run_benchmarks.py"
 python $R --config heuristic --cases all
 
 # Each model: the two agent configurations, then the two single-shot baselines
-foreach ($m in "minimax-m3.1-flash:cloud", "gemma4:31b-cloud", "deepseek-v4.1-flash:cloud") {
+foreach ($m in "gemma4:31b-cloud", "minimax-m3.1-flash:cloud", "deepseek-v4.1-flash:cloud", "mistral-large-4:cloud") {
     python $R --model $m --config full_agent --cases all --seeds 1 --temperature 0.2
     python $R --model $m --config ablated    --cases all --seeds 1 --temperature 0.2
     python $R --model $m --config direct_llm --cases all --seeds 1
     python $R --model $m --config code_gen   --cases all --seeds 1
 }
-
-# The local model needs the longer timeout
-python $R --model qwen3.5:9b --config full_agent --cases all --seeds 1 --temperature 0.2 --timeout 5400
-python $R --model qwen3.5:9b --config ablated    --cases all --seeds 1 --temperature 0.2 --timeout 5400
-python $R --model qwen3.5:9b --config direct_llm --cases all --seeds 1 --timeout 5400
-python $R --model qwen3.5:9b --config code_gen   --cases all --seeds 1 --timeout 5400
 ```
 
 `--cases` takes `all`, a group (`A_2D`, `B_3D`, `C_Multimodal`, `D_Robustness`), or case IDs or prefixes

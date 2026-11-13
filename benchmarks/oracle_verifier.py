@@ -28,11 +28,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    from .benchmark_utils import calculate_concrete_volume
-    from .case_schema import REPO_ROOT, BenchmarkCase, SectionPair, cases_by_id
+    from .benchmark_utils import calculate_concrete_volume, designed_footing_volume
+    from .case_schema import LIMIT_VIOLATION, REPO_ROOT, BenchmarkCase, SectionPair, cases_by_id
 except ImportError:
-    from research_paper.benchmarks.benchmark_utils import calculate_concrete_volume
-    from research_paper.benchmarks.case_schema import REPO_ROOT, BenchmarkCase, SectionPair, cases_by_id
+    from research_paper.benchmarks.benchmark_utils import calculate_concrete_volume, designed_footing_volume
+    from research_paper.benchmarks.case_schema import (
+        LIMIT_VIOLATION, REPO_ROOT, BenchmarkCase, SectionPair, cases_by_id)
 
 from struct_core import conversion_factor
 from struct_agent.tools.analysis import run_analysis
@@ -55,7 +56,10 @@ class OracleSolution:
     sections: Optional[SectionPair]
     metrics: Dict[str, float] = field(default_factory=dict)
     design: Optional[Dict[str, Any]] = None
+    # Concrete volume of the frame members, which the configurations size and the material economy ratio compares,
+    # and of the footings the oracle designs for them (model length unit cubed)
     concrete_volume: Optional[float] = None
+    footing_volume: Optional[float] = None
     error: Optional[str] = None
 
     @property
@@ -75,6 +79,8 @@ class OracleResult:
     hallucinated_metrics: List[str] = field(default_factory=list)
     omitted_metrics: List[str] = field(default_factory=list)
     metric_errors: Dict[str, float] = field(default_factory=dict)
+    # Metrics of the sections reduced to a stated architectural limit, when the delivered sections exceed it (D02)
+    limit_design_metrics: Dict[str, float] = field(default_factory=dict)
 
     @property
     def calculation_hallucination_rate_pct(self) -> float:
@@ -85,6 +91,39 @@ class OracleResult:
     def claim_completeness_pct(self) -> float:
         n = len(self.claims_made) + len(self.omitted_metrics)
         return round(100.0 * len(self.claims_made) / n, 1) if n else 100.0
+
+
+# Proportion limits of members and joints. Their ratio compares dimensions, not a demand with a capacity, so a design
+# that meets one exactly (a 0.25 m beam in a special moment frame: 250 mm / 250 mm = 1.000) is governed by it whatever
+# its strength ratios.
+DIMENSION_RULES = (
+    "§18.6.2.1(a)",  # SMF beam: clear span >= 4d
+    "§18.6.2.1(b)",  # SMF beam: width >= max(0.3h, 250 mm)
+    "§18.7.2.1(a)",  # SMF column: shortest dimension >= 300 mm
+    "§18.7.2.1(b)",  # SMF column: dimension ratio >= 0.4
+    "§15.3.1",       # joint: beam depth <= 2 x column depth (else strut-and-tie)
+    "§18.8.2.3",     # SMF joint: column depth >= 20 bar diameters, and the joint depth >= half the beam depth
+)
+
+
+def _is_dimension_rule(check: Any) -> bool:
+    return str(getattr(check, "clause", "")).rstrip().endswith(DIMENSION_RULES)
+
+
+def dcr_without_dimension_rules(design_res: Any) -> Optional[float]:
+    """Governing ratio of the beams, columns, and frame-level checks (joints, slenderness, drift, stability) without
+    the proportion limits of ``DIMENSION_RULES``: the largest demand-capacity ratio of the design. An element's ratio
+    is the largest of its flexure (P-M for a column), shear, and code checks, as the adapter combines it."""
+    ratios: List[float] = []
+    for r in design_res.element_results.values():
+        if getattr(r, "member_type", None) not in ("beam", "column"):
+            continue
+        for part in (getattr(r, "flexure", None), getattr(r, "shear", None)):
+            if part is not None and getattr(part, "dcr", None) is not None:
+                ratios.append(float(part.dcr))
+        ratios += [float(c.dcr) for c in (r.code_checks or []) if not _is_dimension_rule(c)]
+    ratios += [float(c.dcr) for c in (getattr(design_res, "system_checks", None) or []) if not _is_dimension_rule(c)]
+    return max(ratios) if ratios else None
 
 
 def _quiet(fn, *args, **kwargs):
@@ -280,17 +319,25 @@ class OracleVerifier:
             validate_model(proj)
             vertical = "fz" if case.spec.cae is not None or case.spec.geometry.dimension == "3d" else "fy"
             _quiet(self._analyze, case, proj, sol, vertical)
+            footing_volume = 0.0
             if case.deliverables.design != "none" or case.spec.initial_sections is not None:
+                foundation = case.spec.foundation
                 res = _require(_quiet(
                     run_design, proj, design_case_id="oracle",
-                    allowable_bearing_pressure=case.spec.foundation.allowable_bearing_pressure
-                    if case.spec.foundation is not None else None), "run_design")
+                    **({} if foundation is None else dict(
+                        allowable_bearing_pressure=foundation.allowable_bearing_pressure,
+                        soil_depth=foundation.soil_depth, soil_unit_weight=foundation.soil_unit_weight))),
+                    "run_design")
                 sol.design = {k: res.data[k] for k in (
                     "governing_dcr", "governing_member_id", "governing_member_type", "governing_limit_state",
                     "dcr_flexure", "dcr_shear",
                 )}
+                sol.design["dcr_without_dimension_rules"] = dcr_without_dimension_rules(
+                    proj.design_results["oracle"])
                 sol.metrics["governing_dcr"] = res.data["governing_dcr"]
+                footing_volume = designed_footing_volume(proj, "oracle")
             sol.concrete_volume = calculate_concrete_volume(proj, strict=True)
+            sol.footing_volume = footing_volume
         except Exception as exc:  # recorded, never silently replaced
             sol.error = f"{type(exc).__name__}: {exc}"
         return sol
@@ -391,6 +438,31 @@ class OracleVerifier:
     # ------------------------------------------------------------------
     # Scoring
     # ------------------------------------------------------------------
+    @staticmethod
+    def strength_dcr_reference(case: BenchmarkCase, sol: OracleSolution) -> List[float]:
+        """A second reference for a claimed governing DCR: when a proportion limit (``DIMENSION_RULES``) that the
+        design meets governs it, the largest demand-capacity ratio of the design. A response that reports its strength
+        ratio (deepseek code_gen B06, campaign 2: 0.854 for a design with 0.25 m beams, flexure 0.834, governed by the
+        250 mm beam width at 1.000) states the design's ratio, not a wrong value. A failed proportion limit (a ratio
+        above 1.0) keeps the single reference: the design does not comply, whatever its strength."""
+        design = sol.design or {}
+        governing, strength = design.get("governing_dcr"), design.get("dcr_without_dimension_rules")
+        if governing is None or strength is None or governing > case.deliverables.max_dcr:
+            return []
+        return [strength] if strength < governing - 1e-9 else []
+
+    @staticmethod
+    def sections_at_limit(case: BenchmarkCase, sections: Optional[SectionPair]) -> Optional[SectionPair]:
+        """``sections`` reduced to the stated architectural limits (D02), or None when the case states no limit or
+        the reduced sections are outside the design space for another reason."""
+        lim = case.spec.section_limits
+        if lim is None or sections is None:
+            return None
+        side = min(*sections.column, lim.max_width, lim.max_depth)
+        reduced = SectionPair(column=(side, side),
+                              beam=(min(sections.beam[0], lim.max_width), min(sections.beam[1], lim.max_depth)))
+        return None if case.design_space_violations(reduced) else reduced
+
     def evaluate(
         self,
         case_id: str,
@@ -424,17 +496,30 @@ class OracleVerifier:
         result = OracleResult(
             solution=sol, code_compliant=compliant, material_economy_ratio=economy, design_space_violations=violations
         )
-        for metric in case.evaluation.required_metrics:
+        # A withheld or contradictory input (D03, D04) leaves the structure undetermined: the response is judged on its
+        # behaviour and its values have no reference, also when it states sections (a single-shot answer). The
+        # canonical model would otherwise score them against the hidden 3.5 m stories or the 15 m reading of D04.
+        scored_metrics = [] if case.evaluation.withheld else case.evaluation.required_metrics
+        # Sections beyond a stated architectural limit (D02): a response that reports the limit infeasible may state the
+        # values of the design at the limit, or of the enlarged sections it proposes instead. Both are true statements,
+        # so a claimed value is compared with both designs and the smaller error counts.
+        at_limit = self.sections_at_limit(case, sections) if LIMIT_VIOLATION in violations else None
+        if at_limit is not None and scored_metrics:
+            result.limit_design_metrics = dict(self.solve(case_id, at_limit).metrics)
+        for metric in scored_metrics:
             truth = sol.metrics.get(metric)
             if truth is None:
-                continue  # no reference (e.g. a withheld input leaves the structure undetermined): not scored
+                continue  # no reference: not scored
             claimed = claims.get(metric)
             if claimed is None:
                 result.omitted_metrics.append(metric)
                 continue
             result.claims_made.append(metric)
             try:
-                err = abs(float(claimed) - truth) / max(abs(truth), 1e-4)
+                references = [truth] + [v for v in [result.limit_design_metrics.get(metric)] if v is not None]
+                if metric == "governing_dcr":
+                    references += self.strength_dcr_reference(case, sol)
+                err = min(abs(float(claimed) - ref) / max(abs(ref), 1e-4) for ref in references)
             except (TypeError, ValueError):
                 err = math.inf
             result.metric_errors[metric] = round(err, 4) if math.isfinite(err) else 1.0

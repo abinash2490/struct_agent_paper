@@ -111,6 +111,8 @@ def candidates(oracle: OracleVerifier, case: BenchmarkCase) -> List[Tuple[float,
 
 
 def min_volume_search(oracle: OracleVerifier, case: BenchmarkCase, workers: int) -> BaselineDesign:
+    """Compliant pair of sections (members, joints, frame checks, and the footings the oracle designs for them)
+    with the least frame concrete volume: candidates are scanned in ascending frame volume."""
     cands = candidates(oracle, case)
     batch = max(1, 2 * workers)
     evaluated = 0
@@ -126,7 +128,8 @@ def min_volume_search(oracle: OracleVerifier, case: BenchmarkCase, workers: int)
                     sol = oracle.solve(case.id, sections)
                     return BaselineDesign(
                         feasible=True, sections=sections, concrete_volume=sol.concrete_volume,
-                        design=_design_summary(sol), evaluations=evaluated, candidates=len(cands),
+                        footing_volume=sol.footing_volume, design=_design_summary(sol), evaluations=evaluated,
+                        candidates=len(cands),
                     )
     return BaselineDesign(feasible=False, evaluations=evaluated, candidates=len(cands))
 
@@ -175,7 +178,8 @@ def reference_for(oracle: OracleVerifier, case: BenchmarkCase) -> Optional[Refer
         return ReferenceSolution(source=stamp, initial_dcr=initial) if initial is not None else None
     sol = oracle.solve(case.id, baseline.sections)
     return ReferenceSolution(source=stamp, sections=baseline.sections, metrics=_rounded(sol.metrics),
-                             design=_design_summary(sol), initial_dcr=initial, concrete_volume=sol.concrete_volume)
+                             design=_design_summary(sol), initial_dcr=initial, concrete_volume=sol.concrete_volume,
+                             footing_volume=sol.footing_volume)
 
 
 def _raise_on_error(sol: OracleSolution) -> None:

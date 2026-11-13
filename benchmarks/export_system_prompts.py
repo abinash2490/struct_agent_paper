@@ -6,7 +6,7 @@ Usage
 -----
     python research_paper/benchmarks/export_system_prompts.py
 writes research_paper/manuscript/supplementary/S1_system_prompts.md. The single-shot prompts depend on the case
-(their JSON keys are the case's sections and metrics); they are shown for B08, the case of Appendix A.
+(their JSON keys are the case's sections and metrics); they are shown for B08, the case of Section S2.1 of Supplementary Material S2.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def main() -> None:
 
     out = f"""# Supplementary Material S1. System Prompts
 
-This file reproduces the system prompts of the four LLM configurations verbatim, as the code builds them (`struct_agent/struct_agent/llm/prompts.py` and `research_paper/benchmarks/run_benchmarks.py`). The case prompt follows the system prompt as the user message; Appendix A gives the case prompt of B08.
+This file reproduces the system prompts of the four LLM configurations verbatim, as the code builds them (`struct_agent/struct_agent/llm/prompts.py` and `research_paper/benchmarks/run_benchmarks.py`). The case prompt follows the system prompt as the user message; Supplementary Material S2 (Section S2.1) gives the case prompt of B08.
 
 ## S1.1. Full agent (`full_agent`)
 
