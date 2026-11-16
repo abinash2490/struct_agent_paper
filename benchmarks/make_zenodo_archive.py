@@ -39,7 +39,8 @@ REPOSITORIES = ["research_paper", "struct_core", "struct_load", "fem2d", "fem3d"
                 "struct_draw", "struct_link", "struct_agent"]
 
 TITLE = ("Benchmark cases, results, and source code for 'Explicit engineering knowledge in large language "
-         "model agents for reinforced concrete frame design'")
+         "model agents for reinforced concrete frame design: a neuro-symbolic architecture and oracle-based "
+         "evaluation'")
 PAPER = ("Explicit engineering knowledge in large language model agents for reinforced concrete frame design: "
          "a neuro-symbolic architecture and oracle-based evaluation")
 

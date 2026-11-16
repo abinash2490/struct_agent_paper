@@ -120,8 +120,10 @@ def figure_ccr_chr(runs) -> None:
             ax.annotate(FAMILY[model], (chr_, ccr), xytext=(dx, dy), textcoords="offset points", fontsize=6.5,
                         color=INK_2, ha=ha, va="center")
     ax.set_xlim(-11, 71)
+    ax.spines["bottom"].set_bounds(0, 70)  # the axis starts at 0; the space to its left holds point labels
     ax.set_ylim(-4, 110)
-    ax.set_xlabel("Wrong reported values, CHR (%)")
+    ax.set_xticks(range(0, 71, 10))
+    ax.set_xlabel("Wrong reported values, RVER (%)")
     ax.set_ylabel("Compliant designs, CCR (%)")
     handles = [Line2D([], [], linestyle="", marker=MARKER[c], markersize=6,
                       markerfacecolor=SURFACE if c == "code_gen" else COLOR[c],
@@ -299,7 +301,7 @@ def figure_convergence(runs) -> None:
         ax.set_ylim(0.8, 2.7)
         ax.set_title(SHORT[model], loc="left", color=INK)
     for ax in axes[1, :]:
-        ax.set_xlabel("Design check (run_design call)")
+        ax.set_xlabel("Design check")
     for ax in axes[:, 0]:
         ax.set_ylabel("Governing DCR")
     handles = [Line2D([], [], color=c, marker=m, markersize=5, markeredgecolor=SURFACE, linewidth=1.6, label=cid)

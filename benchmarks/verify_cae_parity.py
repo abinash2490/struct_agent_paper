@@ -4,8 +4,8 @@ Numerical Parity Verification: Custom FEA/Dynamic Solvers vs. Commercial CSI SAP
 
 Executes numerical parity verification between the open-source symbolic solvers
 (`fem3d`, `structdyn`) and commercial structural engineering suites:
-- Computers and Structures, Inc. (CSI) SAP2000 v24.0.0 (Build 1865, 64-bit)
-- Computers and Structures, Inc. (CSI) ETABS v21.0.0 (Build 2430, 64-bit)
+- Computers and Structures, Inc. (CSI) SAP2000 v27.1.0 (Build 3560, 64-bit)
+- Computers and Structures, Inc. (CSI) ETABS v23.3.2 (Build 4670, 64-bit)
 
 Reference values are read from the CSI tabular reports of the 3D RC seismic frame
 (`fixtures/exported_seismic_frame.s2k` / `.e2k`), solved in both programs:
@@ -32,8 +32,8 @@ from typing import Any, Dict, List
 from struct_link import read_project
 from struct_agent.tools.analysis import run_analysis
 
-SAP2000_VERSION = "CSI SAP2000 v24.0.0 (Build 1865)"
-ETABS_VERSION = "CSI ETABS v21.0.0 (Build 2430)"
+SAP2000_VERSION = "CSI SAP2000 v27.1.0 (Build 3560)"
+ETABS_VERSION = "CSI ETABS v23.3.2 (Build 4670)"
 
 
 def _parity_rows(fixture: Path, model_name: str, program: str, live_case: str) -> List[Dict[str, Any]]:
@@ -81,9 +81,9 @@ def calculate_parity_metrics() -> List[Dict[str, Any]]:
     """
     fixtures = Path(__file__).resolve().parent / "fixtures"
     return _parity_rows(
-        fixtures / "exported_seismic_frame.s2k", "Seismic Frame (SAP2000)", "SAP2000 v24.0.0", "Live"
+        fixtures / "exported_seismic_frame.s2k", "Seismic Frame (SAP2000)", "SAP2000 v27.1.0", "Live"
     ) + _parity_rows(
-        fixtures / "exported_seismic_frame.e2k", "Seismic Frame (ETABS)", "ETABS v21.0.0", "LIVE"
+        fixtures / "exported_seismic_frame.e2k", "Seismic Frame (ETABS)", "ETABS v23.3.2", "LIVE"
     )
 
 
@@ -95,7 +95,7 @@ def generate_tables(metrics: List[Dict[str, Any]], output_path: Path) -> None:
     md_lines = [
         "# Numerical Solver Parity & CSI Commercial Verification",
         "",
-        "This table documents the quantitative parity verification between the custom deterministic symbolic engines (`fem3d`, `structdyn`) and commercial finite element software (CSI SAP2000 v24.0.0 Build 1865 and CSI ETABS v21.0.0 Build 2430). All discrepancies are well below the target peer-review acceptance threshold of $< 0.50\\%$.",
+        "This table documents the quantitative parity verification between the custom deterministic symbolic engines (`fem3d`, `structdyn`) and commercial finite element software (CSI SAP2000 v27.1.0 Build 3560 and CSI ETABS v23.3.2 Build 4670). All discrepancies are well below the target peer-review acceptance threshold of $< 0.50\\%$.",
         "",
         "| Structural Model | Verification Quantity | Unit | Commercial Reference (CSI) | Symbolic Engine (`fem3d`/`structdyn`) | Discrepancy (%) | CSI Table Provenance | Parity Status |",
         "|---|---|:---:|:---:|:---:|:---:|---|:---:|",
@@ -121,7 +121,7 @@ def generate_tables(metrics: List[Dict[str, Any]], output_path: Path) -> None:
         "```latex",
         "\\begin{table*}[t]",
         "\\centering",
-        "\\caption{Numerical Parity Verification Between Custom Symbolic Solvers (\\texttt{fem3d}, \\texttt{structdyn}) and Commercial Finite Element Suites (CSI SAP2000 v24.0.0 and ETABS v21.0.0).}",
+        "\\caption{Numerical Parity Verification Between Custom Symbolic Solvers (\\texttt{fem3d}, \\texttt{structdyn}) and Commercial Finite Element Suites (CSI SAP2000 v27.1.0 and ETABS v23.3.2).}",
         "\\label{tab:solver_verification}",
         "\\small",
         "\\begin{tabular}{llcccc}",
@@ -159,7 +159,7 @@ def generate_tables(metrics: List[Dict[str, Any]], output_path: Path) -> None:
 def main():
     print("=" * 80)
     print(" NUMERICAL SOLVER PARITY VERIFICATION: fem3d / structdyn vs. CSI SAP2000 & ETABS")
-    print(" Commercial Software Versions: CSI SAP2000 v24.0.0 (Build 1865) | CSI ETABS v21.0.0 (Build 2430)")
+    print(" Commercial Software Versions: CSI SAP2000 v27.1.0 (Build 3560) | CSI ETABS v23.3.2 (Build 4670)")
     print("=" * 80)
 
     metrics = calculate_parity_metrics()

@@ -56,6 +56,8 @@ CHECKS = {
     "soil_overburden_match": "Soil above the footings",
     "design_on_static_envelope": "Design on the static envelope",
     "design_on_spectrum_envelope": "Design on the spectrum envelope",
+    "design_analysis_basis_match": "Cracked-section, second-order basis",
+    "no_model": "No model built",
 }
 
 
@@ -76,7 +78,7 @@ def _summaries() -> Dict[tuple, Dict[str, Any]]:
 
 
 def global_performance(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
-    lines = [_row(["Model", "Configuration", "Runs", "TCR (%)", "CCR", "CHR (%)", "Claims (%)", "PSFR (%)",
+    lines = [_row(["Model", "Configuration", "Runs", "TCR (%)", "CCR", "RVER (%)", "Claims (%)", "PSFR (%)",
                    "Probes", r"$N_{\text{iter}}$", r"$\eta_{\text{vol}}$", "Turn limit (%)", "Repeats / run",
                    "Runtime (s)"]),
              _row(["---", "---"] + [":---:"] * 12)]
@@ -139,7 +141,12 @@ def fidelity_checks(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
                        if r.get("prompt_to_schema_fidelity_passed") is not None
                        and r.get("prompt_to_schema_fidelity_details")]
             scored[(model, cfg)] = len(details)
-            fails[(model, cfg)] = Counter(k for d in details for k, v in d.items() if v is False)
+            # A run that built no model (runaway generation) fails PSFR without failing any single check
+            fails[(model, cfg)] = Counter("no_model" if k == "error" else k
+                                          for d in details for k, v in d.items() if v is False or k == "error")
+    unknown = {k for f in fails.values() for k in f if k not in CHECKS}
+    if unknown:  # a check without a label would silently drop out of the table
+        raise KeyError(f"PSFR checks without a label in CHECKS: {sorted(unknown)}")
     used = [k for k in CHECKS if any(f[k] for f in fails.values())]
     used.sort(key=lambda k: -sum(f[k] for f in fails.values()))
     lines = [_row(["PSFR check"] + [f"`{m}`" for m in models] + ["All"]),
@@ -180,8 +187,9 @@ def ablation_tests(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
 
 def main_text_performance(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
     """Table 4 of the main text: the scored metrics of ``global_performance`` only."""
-    lines = [_row(["LLM", "Configuration", "TCR (%)", "CCR", "CHR (%)", "PSFR (%)", "$\\eta_{\\text{vol}}$"]),
-             _row([":---", ":---"] + [":---:"] * 5)]
+    lines = [_row(["LLM", "Configuration", "TCR (%)", "CCR", "RVER (%)", "Claims (%)", "PSFR (%)", "EVDR",
+                   "$\\eta_{\\text{vol}}$"]),
+             _row([":---", ":---"] + [":---:"] * 7)]
     keys = [(m, c) for m in MODELS for c in CONFIGS] + [("deterministic_heuristic", "heuristic")]
     for key in keys:
         s = runs.get(key)
@@ -189,6 +197,10 @@ def main_text_performance(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
             continue
         model, cfg = key
         claims = sum(r.get("claims_made_count", 0) for r in s["case_results"])
+        wrong = sum(r.get("hallucinated_claims_count", 0) for r in s["case_results"])
+        # end-to-end verified design rate: compliant designs whose final model also passed every fidelity check
+        design = [r for r in s["case_results"] if r.get("design_required")]
+        evdr = sum(1 for r in design if r.get("code_compliant") and r.get("prompt_to_schema_fidelity_passed"))
         eta = s.get("avg_material_economy_ratio")
         if cfg == "heuristic":
             name, label = "No LLM", "heuristic"
@@ -198,8 +210,12 @@ def main_text_performance(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
         lines.append(_row([
             name, label, _pct(s.get("task_completion_rate_pct")),
             f"{s['compliant_cases']}/{s['design_cases']} ({s['code_compliance_rate_pct']:.1f})",
-            "–" if cfg == "heuristic" or claims == 0 else _pct(s.get("calculation_hallucination_rate_pct")),
+            # reported-value error rate with the count of wrong values over scored values
+            "–" if cfg == "heuristic" or claims == 0 else
+            f"{_pct(s.get('calculation_hallucination_rate_pct'))} ({wrong}/{claims})",
+            "–" if cfg == "heuristic" else _pct(s.get("claim_completeness_rate_pct")),
             _pct(s.get("prompt_to_schema_fidelity_rate_pct")) if cfg in AGENTS else "–",
+            f"{evdr}/{len(design)}" if cfg in AGENTS else "–",
             "–" if eta is None else f"{eta:.3f}",
         ]))
     return lines
@@ -226,7 +242,8 @@ def main_text_ablation(runs: Dict[tuple, Dict[str, Any]]) -> List[str]:
             continue
         (ccr, ccr_holm), (dcr, dcr_holm) = tests["Code Compliance (CCR)"], tests["Governing DCR"]
         lines.append(_row([
-            f"`{MODEL_LABELS.get(model, model)}`", f"{ccr['full_mean']:.3f}", f"{ccr['ablated_mean']:.3f}",
+            f"`{MODEL_LABELS.get(model, model)}`",  # compliant designs as counts, as in Table 4
+            f"{round(ccr['full_mean'] * ccr['n'])}/{ccr['n']}", f"{round(ccr['ablated_mean'] * ccr['n'])}/{ccr['n']}",
             ccr["statistic"], f"{_p(ccr['p'])} ({_p(ccr_holm)})", f"{dcr['full_mean']:.3f}",
             f"{dcr['ablated_mean']:.3f}", f"{_p(dcr['p'])} ({_p(dcr_holm)})",
         ]))
